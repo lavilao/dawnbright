@@ -1,0 +1,6 @@
+{
+  "name": "Sunshine Cast",
+  "description": "High-performance remote play host for Chrome with hardware-accelerated H.264 screencasting, audio, app launcher, and keyboard/mouse controls.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
