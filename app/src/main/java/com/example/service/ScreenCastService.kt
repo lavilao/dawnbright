@@ -1,6 +1,6 @@
 package com.example.service
 
-import android.app.Notification
+import android.app.Activity
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -9,12 +9,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.media.projection.MediaProjection
+import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.MainActivity
-import com.example.R
 import com.example.data.AppRepository
 import com.example.data.model.GameApp
 import com.example.data.model.RemoteInputEvent
@@ -44,7 +44,8 @@ class ScreenCastService : Service() {
         const val ACTION_START = "com.example.action.START"
         const val ACTION_STOP = "com.example.action.STOP"
 
-        var mediaProjection: MediaProjection? = null
+        const val EXTRA_RESULT_CODE = "com.example.extra.RESULT_CODE"
+        const val EXTRA_RESULT_DATA = "com.example.extra.RESULT_DATA"
 
         private val _serverStatus = MutableStateFlow(ServerStatus())
         val serverStatus: StateFlow<ServerStatus> = _serverStatus.asStateFlow()
@@ -53,6 +54,7 @@ class ScreenCastService : Service() {
     }
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var mediaProjection: MediaProjection? = null
     private var videoEncoder: HardwareVideoEncoder? = null
     private var audioStreamer: AudioStreamer? = null
     private var webServer: HttpWebServer? = null
@@ -67,7 +69,11 @@ class ScreenCastService : Service() {
         createNotificationChannel()
 
         serviceScope.launch(Dispatchers.IO) {
-            cachedApps = appRepo.getInstalledGamesAndApps()
+            try {
+                cachedApps = appRepo.getInstalledGamesAndApps()
+            } catch (e: Exception) {
+                Log.w(TAG, "Error caching installed apps: ${e.message}")
+            }
         }
     }
 
@@ -81,90 +87,138 @@ class ScreenCastService : Service() {
             return START_NOT_STICKY
         }
 
+        // CRITICAL ON ANDROID 10, 11, 14+:
+        // startForeground MUST be called BEFORE initializing or using MediaProjection
         startForegroundServiceNotification()
-        startStreaming()
+
+        val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED) ?: Activity.RESULT_CANCELED
+        val resultData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent?.getParcelableExtra(EXTRA_RESULT_DATA, Intent::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent?.getParcelableExtra(EXTRA_RESULT_DATA)
+        }
+
+        if (resultCode == Activity.RESULT_OK && resultData != null) {
+            startStreaming(resultCode, resultData)
+        } else {
+            Log.w(TAG, "Invalid resultCode ($resultCode) or resultData ($resultData)")
+        }
 
         return START_STICKY
     }
 
     private fun startForegroundServiceNotification() {
-        val launchIntent = Intent(this, MainActivity::class.java).apply {
-            this.flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-        }
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, launchIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val ip = getLocalIpAddress()
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Sunshine Cast Server")
-            .setContentText("Remote Play active at http://$ip:${currentConfig.port}")
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setOngoing(true)
-            .setContentIntent(pendingIntent)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .build()
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+        try {
+            val launchIntent = Intent(this, MainActivity::class.java).apply {
+                this.flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+            }
+            val pendingIntent = PendingIntent.getActivity(
+                this, 0, launchIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+
+            val ip = getLocalIpAddress()
+            val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("Sunshine Cast Server")
+                .setContentText("Remote Play active at http://$ip:${currentConfig.port}")
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setOngoing(true)
+                .setContentIntent(pendingIntent)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .build()
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error starting foreground notification", e)
         }
     }
 
-    private fun startStreaming() {
-        val projection = mediaProjection
-        if (projection == null) {
-            Log.e(TAG, "MediaProjection is null, cannot start screen cast")
-            stopSelf()
-            return
-        }
+    private fun startStreaming(resultCode: Int, resultData: Intent) {
+        try {
+            val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+            val projection = projectionManager.getMediaProjection(resultCode, resultData)
 
-        val ip = getLocalIpAddress()
-        _serverStatus.value = _serverStatus.value.copy(
-            isRunning = true,
-            isStreaming = true,
-            ipAddress = ip,
-            port = currentConfig.port
-        )
-
-        // 1. Initialize and start HTTP & WebSocket Web Server
-        webServer = HttpWebServer(
-            port = currentConfig.port,
-            getAppsProvider = { cachedApps },
-            getStatusProvider = { _serverStatus.value },
-            onInputReceived = { event -> handleRemoteInput(event) },
-            onKeyFrameRequested = { videoEncoder?.requestKeyFrame() }
-        ).apply {
-            start(serviceScope)
-        }
-
-        // 2. Initialize and start Hardware H.264 Video Encoder
-        videoEncoder = HardwareVideoEncoder(
-            config = currentConfig,
-            onFrameEncoded = { data, isKeyFrame, ptsUs ->
-                webServer?.broadcastVideoFrame(data, isKeyFrame, ptsUs)
-            },
-            onSpsPpsAvailable = { _, _ -> }
-        ).apply {
-            start(projection, serviceScope)
-        }
-
-        // 3. Initialize and start internal Audio Streamer
-        if (currentConfig.audioEnabled) {
-            audioStreamer = AudioStreamer { data, ptsUs ->
-                webServer?.broadcastAudioChunk(data, ptsUs)
-            }.apply {
-                start(projection, serviceScope)
+            if (projection == null) {
+                Log.e(TAG, "MediaProjection is null from MediaProjectionManager")
+                return
             }
-        }
 
-        Log.i(TAG, "Sunshine Cast streaming started successfully at http://$ip:${currentConfig.port}")
+            // Register callback required on Android 14+
+            projection.registerCallback(object : MediaProjection.Callback() {
+                override fun onStop() {
+                    super.onStop()
+                    Log.i(TAG, "MediaProjection stopped by system")
+                    stopStreaming()
+                }
+            }, null)
+
+            this.mediaProjection = projection
+
+            val ip = getLocalIpAddress()
+            _serverStatus.value = _serverStatus.value.copy(
+                isRunning = true,
+                isStreaming = true,
+                ipAddress = ip,
+                port = currentConfig.port
+            )
+
+            // 1. Initialize and start HTTP & WebSocket Web Server
+            try {
+                webServer = HttpWebServer(
+                    port = currentConfig.port,
+                    getAppsProvider = { cachedApps },
+                    getStatusProvider = { _serverStatus.value },
+                    onInputReceived = { event -> handleRemoteInput(event) },
+                    onKeyFrameRequested = { videoEncoder?.requestKeyFrame() }
+                ).apply {
+                    start(serviceScope)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error starting HttpWebServer: ${e.message}", e)
+            }
+
+            // 2. Initialize and start Hardware H.264 Video Encoder
+            try {
+                videoEncoder = HardwareVideoEncoder(
+                    config = currentConfig,
+                    onFrameEncoded = { data, isKeyFrame, ptsUs ->
+                        webServer?.broadcastVideoFrame(data, isKeyFrame, ptsUs)
+                    },
+                    onSpsPpsAvailable = { _, _ -> }
+                ).apply {
+                    start(projection, serviceScope)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error starting HardwareVideoEncoder: ${e.message}", e)
+            }
+
+            // 3. Initialize and start internal Audio Streamer (with safe isolation)
+            if (currentConfig.audioEnabled) {
+                try {
+                    audioStreamer = AudioStreamer { data, ptsUs ->
+                        webServer?.broadcastAudioChunk(data, ptsUs)
+                    }.apply {
+                        start(projection, serviceScope)
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "AudioStreamer not supported on this device/configuration: ${e.message}")
+                }
+            }
+
+            Log.i(TAG, "Sunshine Cast streaming started successfully at http://$ip:${currentConfig.port}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start streaming pipeline", e)
+            stopStreaming()
+        }
     }
 
     private fun handleRemoteInput(event: RemoteInputEvent) {
@@ -195,6 +249,17 @@ class ScreenCastService : Service() {
             is RemoteInputEvent.StreamControl -> {
                 if (event.action == "request_keyframe") {
                     videoEncoder?.requestKeyFrame()
+                } else if (event.action == "set_resolution") {
+                    // Dynamic resolution adjustment requested by connected client
+                    val parts = event.value.split("x")
+                    if (parts.size == 2) {
+                        val w = parts[0].toIntOrNull()
+                        val h = parts[1].toIntOrNull()
+                        if (w != null && h != null && w > 0 && h > 0) {
+                            Log.i(TAG, "Client requested custom resolution: ${w}x${h}")
+                            currentConfig = currentConfig.copy(width = w, height = h)
+                        }
+                    }
                 }
             }
         }
@@ -202,16 +267,16 @@ class ScreenCastService : Service() {
 
     private fun stopStreaming() {
         Log.i(TAG, "Stopping streaming components")
-        videoEncoder?.stop()
+        try { videoEncoder?.stop() } catch (e: Exception) { Log.w(TAG, e) }
         videoEncoder = null
 
-        audioStreamer?.stop()
+        try { audioStreamer?.stop() } catch (e: Exception) { Log.w(TAG, e) }
         audioStreamer = null
 
-        webServer?.stop()
+        try { webServer?.stop() } catch (e: Exception) { Log.w(TAG, e) }
         webServer = null
 
-        mediaProjection?.stop()
+        try { mediaProjection?.stop() } catch (e: Exception) { Log.w(TAG, e) }
         mediaProjection = null
 
         _serverStatus.value = _serverStatus.value.copy(
@@ -223,14 +288,17 @@ class ScreenCastService : Service() {
 
     private fun getLocalIpAddress(): String {
         try {
-            val interfaces = NetworkInterface.getNetworkInterfaces()
+            val interfaces = NetworkInterface.getNetworkInterfaces() ?: return "127.0.0.1"
             while (interfaces.hasMoreElements()) {
                 val intf = interfaces.nextElement()
-                val addrs = intf.inetAddresses
+                val addrs = intf.inetAddresses ?: continue
                 while (addrs.hasMoreElements()) {
                     val addr = addrs.nextElement()
                     if (!addr.isLoopbackAddress && addr is Inet4Address) {
-                        return addr.hostAddress ?: "127.0.0.1"
+                        val host = addr.hostAddress
+                        if (!host.isNullOrEmpty()) {
+                            return host
+                        }
                     }
                 }
             }

@@ -218,6 +218,14 @@ object WebClientHtml {
       object-fit: fill;
     }
 
+    #stream-container.scale-3-2 #stream-canvas {
+      aspect-ratio: 3 / 2;
+      width: 100%;
+      height: auto;
+      max-height: 100%;
+      object-fit: fill;
+    }
+
     /* VIRTUAL POINTER & INPUT OVERLAY */
     #touch-cursor {
       position: absolute;
@@ -486,7 +494,12 @@ object WebClientHtml {
         <option value="scale-fit" selected>Fit Screen (Preserve Ratio)</option>
         <option value="scale-16-10">16:10 Laptop Match</option>
         <option value="scale-16-9">16:9 Wide</option>
+        <option value="scale-3-2">3:2 Productivity</option>
       </select>
+
+      <button id="btn-detect-res" class="btn-icon" title="Match Stream to Laptop Display Resolution">
+        <span>🖥️</span> Auto-Match (<span id="laptop-res-label">...</span>)
+      </button>
 
       <button id="btn-launcher" class="btn-icon" title="Open Game Launcher">
         <span>🎮</span> Games
@@ -639,6 +652,27 @@ object WebClientHtml {
     const savedScale = localStorage.getItem('sunshine_scaling_mode') || 'scale-fit';
     scalingSelect.value = savedScale;
     applyScaling(savedScale);
+
+    const laptopResLabel = document.getElementById('laptop-res-label');
+    if (laptopResLabel) {
+      laptopResLabel.innerText = window.screen.width + '×' + window.screen.height;
+    }
+    const btnDetectRes = document.getElementById('btn-detect-res');
+    if (btnDetectRes) {
+      btnDetectRes.addEventListener('click', () => {
+        sendInput({
+          type: 'control',
+          action: 'set_resolution',
+          value: window.screen.width + 'x' + window.screen.height
+        });
+        btnDetectRes.style.borderColor = 'var(--success)';
+        btnDetectRes.style.color = 'var(--success)';
+        setTimeout(() => {
+          btnDetectRes.style.borderColor = '';
+          btnDetectRes.style.color = '';
+        }, 1500);
+      });
+    }
 
     // Fullscreen toggle
     document.getElementById('btn-fullscreen').addEventListener('click', () => {

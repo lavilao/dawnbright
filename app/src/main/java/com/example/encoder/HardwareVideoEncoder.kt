@@ -13,9 +13,7 @@ import com.example.data.model.StreamConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
 
 class HardwareVideoEncoder(
@@ -42,7 +40,11 @@ class HardwareVideoEncoder(
         if (isRunning.getAndSet(true)) return
 
         try {
-            val format = MediaFormat.createVideoFormat(MIME_TYPE, config.width, config.height).apply {
+            // Ensure width and height are even numbers (required by H.264 codecs)
+            val encWidth = ((config.width / 2) * 2).coerceAtLeast(320)
+            val encHeight = ((config.height / 2) * 2).coerceAtLeast(240)
+
+            val format = MediaFormat.createVideoFormat(MIME_TYPE, encWidth, encHeight).apply {
                 setInteger(
                     MediaFormat.KEY_COLOR_FORMAT,
                     MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface
@@ -50,21 +52,34 @@ class HardwareVideoEncoder(
                 setInteger(MediaFormat.KEY_BIT_RATE, config.bitrateBps)
                 setInteger(MediaFormat.KEY_FRAME_RATE, config.fps)
                 setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1) // Keyframe every 1s for instant sync
-                setInteger(
-                    MediaFormat.KEY_BITRATE_MODE,
-                    MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR
-                )
-                // Real-time low-latency priority hints
+
+                // Attempt CBR rate control mode first
                 try {
-                    setInteger(MediaFormat.KEY_PRIORITY, 0) // Realtime priority
+                    setInteger(
+                        MediaFormat.KEY_BITRATE_MODE,
+                        MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR
+                    )
+                } catch (_: Exception) {}
+
+                // Low-latency priority hints
+                try {
+                    setInteger(MediaFormat.KEY_PRIORITY, 0)
                     setInteger("latency", 0)
-                } catch (e: Exception) {
-                    Log.d(TAG, "Optional low-latency keys not supported: ${e.message}")
-                }
+                } catch (_: Exception) {}
             }
 
             val codec = MediaCodec.createEncoderByType(MIME_TYPE)
-            codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+            try {
+                codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+            } catch (e: Exception) {
+                Log.w(TAG, "Configure with initial parameters failed, falling back to VBR: ${e.message}")
+                format.setInteger(
+                    MediaFormat.KEY_BITRATE_MODE,
+                    MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR
+                )
+                codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+            }
+
             val surface = codec.createInputSurface()
             codec.start()
 
@@ -74,8 +89,8 @@ class HardwareVideoEncoder(
             // Create VirtualDisplay bound to the hardware encoder input surface
             virtualDisplay = mediaProjection.createVirtualDisplay(
                 "SunshineCastDisplay",
-                config.width,
-                config.height,
+                encWidth,
+                encHeight,
                 320, // DPI
                 DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
                 surface,
@@ -88,7 +103,7 @@ class HardwareVideoEncoder(
                 drainEncoder()
             }
 
-            Log.i(TAG, "Hardware H.264 Encoder started: ${config.width}x${config.height} @ ${config.fps}fps, ${config.bitrateMbps}Mbps")
+            Log.i(TAG, "Hardware H.264 Encoder started: ${encWidth}x${encHeight} @ ${config.fps}fps, ${config.bitrateMbps}Mbps")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start hardware encoder", e)
             stop()
@@ -106,8 +121,6 @@ class HardwareVideoEncoder(
             Log.w(TAG, "Failed to request sync frame: ${e.message}")
         }
     }
-
-    fun getSpsPps(): Pair<ByteArray?, ByteArray?> = Pair(cachedSps, cachedPps)
 
     private fun drainEncoder() {
         val codec = mediaCodec ?: return
@@ -130,7 +143,6 @@ class HardwareVideoEncoder(
                         cachedSps = sps
                         cachedPps = pps
                         onSpsPpsAvailable(sps, pps)
-                        Log.i(TAG, "SPS length: ${sps.size}, PPS length: ${pps.size}")
                     }
                 } else if (outputBufferIndex >= 0) {
                     val outputBuffer = codec.getOutputBuffer(outputBufferIndex)
@@ -142,7 +154,6 @@ class HardwareVideoEncoder(
                         val isKeyFrame = (bufferInfo.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0
 
                         if (isConfig) {
-                            // Extract config parameters directly from stream if csd wasn't already caught
                             val configBytes = ByteArray(bufferInfo.size)
                             outputBuffer.get(configBytes)
                             parseSpsPpsFromConfig(configBytes)
@@ -150,7 +161,6 @@ class HardwareVideoEncoder(
                             val frameBytes = ByteArray(bufferInfo.size)
                             outputBuffer.get(frameBytes)
 
-                            // If this is a keyframe, ensure SPS/PPS headers are present
                             val finalData = if (isKeyFrame && cachedSps != null && cachedPps != null && !hasSpsPrefix(frameBytes)) {
                                 val sps = cachedSps!!
                                 val pps = cachedPps!!
@@ -178,7 +188,6 @@ class HardwareVideoEncoder(
     }
 
     private fun hasSpsPrefix(bytes: ByteArray): Boolean {
-        // Checks if bytes begin with Annex-B SPS (0x00, 0x00, 0x00, 0x01, 0x67 or 0x27)
         if (bytes.size < 5) return false
         val nalType = bytes[4].toInt() and 0x1F
         return nalType == 7
@@ -186,7 +195,6 @@ class HardwareVideoEncoder(
 
     private fun parseSpsPpsFromConfig(bytes: ByteArray) {
         try {
-            // Find 00 00 00 01 delimiter
             val delimiters = mutableListOf<Int>()
             for (i in 0 until bytes.size - 4) {
                 if (bytes[i] == 0.toByte() && bytes[i + 1] == 0.toByte() &&

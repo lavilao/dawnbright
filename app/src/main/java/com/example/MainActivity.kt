@@ -34,77 +34,82 @@ class MainActivity : ComponentActivity() {
         setContent {
             MyApplicationTheme {
                 // Media Projection Launcher
-                val mediaProjectionManager = rememberLauncherForActivityResult(
+                val mediaProjectionLauncher = rememberLauncherForActivityResult(
                     contract = ActivityResultContracts.StartActivityForResult()
                 ) { result ->
                     if (result.resultCode == Activity.RESULT_OK && result.data != null) {
-                        startScreenCastService(result.resultCode, result.data!!)
+                        launchServiceWithResult(result.resultCode, result.data!!)
                     } else {
-                        Toast.makeText(this, "Screen capture permission denied", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, "Screen capture permission was not granted", Toast.LENGTH_SHORT).show()
                     }
                 }
 
-                // Permission Launcher (Audio + Notifications)
+                fun triggerMediaProjection() {
+                    try {
+                        val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                        mediaProjectionLauncher.launch(projectionManager.createScreenCaptureIntent())
+                    } catch (e: Exception) {
+                        Toast.makeText(this, "Could not start screen capture: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+
+                // Audio & Notification Permission Launcher (Sequential to avoid concurrent dialog crash)
                 val permissionLauncher = rememberLauncherForActivityResult(
                     contract = ActivityResultContracts.RequestMultiplePermissions()
-                ) { permissions ->
-                    // Audio and notification status checked
+                ) {
+                    // Proceed to MediaProjection prompt after permission response
+                    triggerMediaProjection()
                 }
 
                 DashboardScreen(
                     viewModel = viewModel,
                     onStartScreenCast = {
-                        // Request necessary runtime permissions
-                        val permissionsToRequest = mutableListOf<String>()
+                        val needed = mutableListOf<String>()
                         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                            permissionsToRequest.add(Manifest.permission.RECORD_AUDIO)
+                            needed.add(Manifest.permission.RECORD_AUDIO)
                         }
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                                permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+                                needed.add(Manifest.permission.POST_NOTIFICATIONS)
                             }
                         }
 
-                        if (permissionsToRequest.isNotEmpty()) {
-                            permissionLauncher.launch(permissionsToRequest.toTypedArray())
+                        if (needed.isNotEmpty()) {
+                            // Request runtime permissions first; callback launches media projection
+                            permissionLauncher.launch(needed.toTypedArray())
+                        } else {
+                            // Permissions already granted, launch media projection directly
+                            triggerMediaProjection()
                         }
-
-                        // Launch MediaProjection consent dialog
-                        val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-                        mediaProjectionManager.launch(projectionManager.createScreenCaptureIntent())
                     }
                 )
             }
         }
     }
 
-    private fun startScreenCastService(resultCode: Int, data: Intent) {
-        val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        val projection = projectionManager.getMediaProjection(resultCode, data)
-
-        if (projection == null) {
-            Toast.makeText(this, "Failed to initialize MediaProjection", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        ScreenCastService.mediaProjection = projection
-
+    private fun launchServiceWithResult(resultCode: Int, data: Intent) {
         val serviceIntent = Intent(this, ScreenCastService::class.java).apply {
             action = ScreenCastService.ACTION_START
+            putExtra(ScreenCastService.EXTRA_RESULT_CODE, resultCode)
+            putExtra(ScreenCastService.EXTRA_RESULT_DATA, data)
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(serviceIntent)
-        } else {
-            startService(serviceIntent)
-        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
 
-        // Start overlay service if permission is available
-        if (Settings.canDrawOverlays(this)) {
-            val overlayIntent = Intent(this, OverlayInputService::class.java)
-            startService(overlayIntent)
-        }
+            // Start overlay service if permission is available
+            if (Settings.canDrawOverlays(this)) {
+                val overlayIntent = Intent(this, OverlayInputService::class.java)
+                startService(overlayIntent)
+            }
 
-        Toast.makeText(this, "Sunshine Cast is live! Connect from Chrome on your laptop.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Sunshine Cast is live! Connect from Chrome on your laptop.", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Failed to start service: ${e.message}", Toast.LENGTH_LONG).show()
+        }
     }
 }

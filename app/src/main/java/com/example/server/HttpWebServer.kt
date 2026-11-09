@@ -290,8 +290,11 @@ class HttpWebServer(
                 }
                 "control" -> {
                     val action = json.optString("action")
+                    val value = json.optString("value")
                     if (action == "request_keyframe") {
                         onKeyFrameRequested()
+                    } else {
+                        onInputReceived(RemoteInputEvent.StreamControl(action, value))
                     }
                 }
                 "ping" -> {
