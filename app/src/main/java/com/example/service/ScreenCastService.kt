@@ -178,7 +178,8 @@ class ScreenCastService : Service() {
                     getAppsProvider = { cachedApps },
                     getStatusProvider = { _serverStatus.value },
                     onInputReceived = { event -> handleRemoteInput(event) },
-                    onKeyFrameRequested = { videoEncoder?.requestKeyFrame() }
+                    onKeyFrameRequested = { videoEncoder?.requestKeyFrame() },
+                    context = this
                 ).apply {
                     start(serviceScope)
                 }

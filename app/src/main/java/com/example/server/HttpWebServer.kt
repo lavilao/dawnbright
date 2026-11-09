@@ -27,7 +27,8 @@ class HttpWebServer(
     private val getAppsProvider: () -> List<GameApp>,
     private val getStatusProvider: () -> ServerStatus,
     private val onInputReceived: (RemoteInputEvent) -> Unit,
-    private val onKeyFrameRequested: () -> Unit
+    private val onKeyFrameRequested: () -> Unit,
+    private val context: android.content.Context? = null
 ) {
     companion object {
         private const val TAG = "HttpWebServer"
@@ -163,6 +164,18 @@ class HttpWebServer(
                 path == "/" || path == "/index.html" -> {
                     val html = WebClientHtml.getHtml()
                     sendHttpResponse(outputStream, 200, "text/html; charset=utf-8", html.toByteArray())
+                }
+                path == "/js/jmuxer.min.js" || path == "/js/jmuxer.js" -> {
+                    val jsBytes = try {
+                        context?.assets?.open("jmuxer.min.js")?.use { it.readBytes() }
+                    } catch (e: Exception) {
+                        null
+                    }
+                    if (jsBytes != null) {
+                        sendHttpResponse(outputStream, 200, "application/javascript; charset=utf-8", jsBytes)
+                    } else {
+                        sendHttpResponse(outputStream, 404, "text/plain", "Not Found".toByteArray())
+                    }
                 }
                 path == "/api/apps" -> {
                     val apps = getAppsProvider()

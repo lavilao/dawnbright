@@ -77,9 +77,15 @@ jobs:
             echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/my-upload-key.jks" >> $GITHUB_ENV
             echo "STORE_PASSWORD=${{ secrets.STORE_PASSWORD }}" >> $GITHUB_ENV
             echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
-          elif [ -f "$GITHUB_WORKSPACE/debug.keystore" ]; then
-            echo "Using project debug keystore for build signing..."
-            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/debug.keystore" >> $GITHUB_ENV
+          elif [ -f "$GITHUB_WORKSPACE/my-upload-key.jks" ]; then
+            echo "Using persistent repository release keystore..."
+            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/my-upload-key.jks" >> $GITHUB_ENV
+            echo "STORE_PASSWORD=android" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=android" >> $GITHUB_ENV
+          elif [ -f "$GITHUB_WORKSPACE/my-upload-key.jks.base64" ]; then
+            echo "Restoring persistent release keystore from base64..."
+            base64 -d "$GITHUB_WORKSPACE/my-upload-key.jks.base64" > "$GITHUB_WORKSPACE/my-upload-key.jks"
+            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/my-upload-key.jks" >> $GITHUB_ENV
             echo "STORE_PASSWORD=android" >> $GITHUB_ENV
             echo "KEY_PASSWORD=android" >> $GITHUB_ENV
           else

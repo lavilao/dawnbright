@@ -10,6 +10,15 @@ object WebClientHtml {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Sunshine Cast - Remote Play</title>
+  <!-- Embedded and CDN fallback for MediaSource Extensions (MSE) H.264 Player on plain HTTP -->
+  <script src="/js/jmuxer.min.js"></script>
+  <script>
+    if (typeof JMuxer === 'undefined') {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/jmuxer@2.0.5/dist/jmuxer.min.js';
+      document.head.appendChild(s);
+    }
+  </script>
   <style>
     :root {
       --bg: #090d16;
@@ -153,6 +162,19 @@ object WebClientHtml {
       border-color: var(--primary);
     }
 
+    /* INSECURE HTTP TIP BANNER */
+    #insecure-http-banner {
+      display: none;
+      background: rgba(0, 229, 255, 0.12);
+      border-bottom: 1px solid var(--primary);
+      padding: 6px 16px;
+      font-size: 0.78rem;
+      color: var(--text);
+      justify-content: space-between;
+      align-items: center;
+      z-index: 99;
+    }
+
     /* MAIN CONTAINER */
     main {
       flex: 1;
@@ -162,7 +184,7 @@ object WebClientHtml {
       background: #000;
     }
 
-    /* STREAM CANVAS CONTAINER - OPTIMIZED SCALING FOR LAPTOP REAL ESTATE */
+    /* STREAM CANVAS/VIDEO CONTAINER - OPTIMIZED SCALING FOR LAPTOP REAL ESTATE */
     #stream-container {
       flex: 1;
       display: flex;
@@ -173,22 +195,23 @@ object WebClientHtml {
       height: 100%;
       background: #000;
       overflow: hidden;
+      cursor: crosshair;
     }
 
-    #stream-canvas {
+    #stream-canvas,
+    #stream-video {
       display: block;
-      /* Default mode: Fill max screen with aspect preservation */
       max-width: 100%;
       max-height: 100%;
       object-fit: contain;
-      cursor: crosshair;
       image-rendering: high-quality;
       box-shadow: 0 0 20px rgba(0,0,0,0.8);
       transition: width 0.15s, height 0.15s;
     }
 
     /* Scaling styles */
-    #stream-container.scale-fill #stream-canvas {
+    #stream-container.scale-fill #stream-canvas,
+    #stream-container.scale-fill #stream-video {
       width: 100% !important;
       height: 100% !important;
       max-width: none;
@@ -196,13 +219,15 @@ object WebClientHtml {
       object-fit: fill !important;
     }
 
-    #stream-container.scale-fit #stream-canvas {
+    #stream-container.scale-fit #stream-canvas,
+    #stream-container.scale-fit #stream-video {
       max-width: 100%;
       max-height: 100%;
       object-fit: contain !important;
     }
 
-    #stream-container.scale-16-10 #stream-canvas {
+    #stream-container.scale-16-10 #stream-canvas,
+    #stream-container.scale-16-10 #stream-video {
       aspect-ratio: 16 / 10;
       width: 100%;
       height: auto;
@@ -210,7 +235,8 @@ object WebClientHtml {
       object-fit: fill;
     }
 
-    #stream-container.scale-16-9 #stream-canvas {
+    #stream-container.scale-16-9 #stream-canvas,
+    #stream-container.scale-16-9 #stream-video {
       aspect-ratio: 16 / 9;
       width: 100%;
       height: auto;
@@ -218,7 +244,8 @@ object WebClientHtml {
       object-fit: fill;
     }
 
-    #stream-container.scale-3-2 #stream-canvas {
+    #stream-container.scale-3-2 #stream-canvas,
+    #stream-container.scale-3-2 #stream-video {
       aspect-ratio: 3 / 2;
       width: 100%;
       height: auto;
@@ -238,50 +265,70 @@ object WebClientHtml {
       transform: translate(-50%, -50%);
       display: none;
       box-shadow: 0 0 10px var(--primary);
-      z-index: 50;
-      transition: opacity 0.2s;
+      z-index: 10;
     }
 
-    /* FLOATING STATS HUD */
+    /* PERFORMANCE HUD */
     .stream-hud {
       position: absolute;
       top: 14px;
       left: 14px;
-      background: rgba(10, 14, 23, 0.85);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(9, 13, 22, 0.85);
       backdrop-filter: blur(8px);
-      padding: 6px 12px;
+      border: 1px solid var(--surface-border);
       border-radius: 8px;
-      font-size: 0.75rem;
-      font-family: "SF Mono", Consolas, monospace;
-      color: var(--primary);
+      padding: 6px 12px;
+      font-size: 0.78rem;
+      font-family: monospace;
+      color: var(--text-muted);
       display: flex;
       gap: 12px;
+      z-index: 20;
       pointer-events: none;
-      z-index: 60;
     }
 
-    /* GAME LAUNCHER OVERLAY */
+    .stream-hud strong {
+      color: var(--primary);
+    }
+
+    /* QUICK DOCK */
+    .quick-dock {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(18, 24, 38, 0.9);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--surface-border);
+      padding: 6px 12px;
+      border-radius: 30px;
+      display: flex;
+      gap: 8px;
+      z-index: 30;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+
+    /* GAME LAUNCHER OVERLAY (Sunshine Style) */
     #launcher-panel {
       position: absolute;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(9, 13, 22, 0.94);
+      background: rgba(9, 13, 22, 0.95);
       backdrop-filter: blur(16px);
-      z-index: 80;
+      z-index: 50;
       display: flex;
       flex-direction: column;
-      padding: 30px 40px;
+      padding: 28px 36px;
       overflow-y: auto;
-      transition: opacity 0.25s, transform 0.25s;
+      transition: opacity 0.25s, visibility 0.25s;
     }
 
     #launcher-panel.hidden {
       opacity: 0;
+      visibility: hidden;
       pointer-events: none;
-      transform: scale(0.97);
     }
 
     .launcher-title-row {
@@ -291,19 +338,11 @@ object WebClientHtml {
       margin-bottom: 24px;
     }
 
-    .launcher-title-row h2 {
-      font-size: 1.6rem;
-      font-weight: 700;
-      background: linear-gradient(90deg, #fff, var(--primary));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
     .games-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
       gap: 20px;
-      margin-bottom: 30px;
+      margin-top: 10px;
     }
 
     .game-card {
@@ -314,31 +353,28 @@ object WebClientHtml {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 12px;
-      cursor: pointer;
-      transition: all 0.22s ease-out;
       text-align: center;
-      position: relative;
-      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     .game-card:hover {
       transform: translateY(-4px);
       border-color: var(--primary);
-      box-shadow: 0 8px 24px var(--primary-glow);
+      box-shadow: 0 10px 25px rgba(0, 229, 255, 0.2);
     }
 
     .game-icon-wrapper {
       width: 72px;
       height: 72px;
       border-radius: 16px;
-      background: rgba(255, 255, 255, 0.04);
+      overflow: hidden;
+      margin-bottom: 12px;
+      background: rgba(255,255,255,0.05);
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 2.2rem;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      overflow: hidden;
     }
 
     .game-icon-wrapper img {
@@ -348,138 +384,92 @@ object WebClientHtml {
     }
 
     .game-card-title {
-      font-size: 0.95rem;
       font-weight: 600;
+      font-size: 0.9rem;
       color: var(--text);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 100%;
+      margin-bottom: 4px;
+      line-height: 1.2;
     }
 
     .game-card-tag {
-      font-size: 0.7rem;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      background: rgba(255,255,255,0.05);
       padding: 2px 8px;
       border-radius: 10px;
-      background: rgba(0, 229, 255, 0.12);
-      color: var(--primary);
-      font-weight: 600;
     }
 
-    /* KEYBOARD CONTROLS HELPER MODAL */
+    /* CONTROLS GUIDE MODAL */
     #controls-modal {
-      position: fixed;
+      position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      width: 90%;
-      max-width: 620px;
       background: var(--surface);
       border: 1px solid var(--surface-border);
       border-radius: 16px;
       padding: 24px;
-      z-index: 120;
-      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8);
+      width: 90%;
+      max-width: 520px;
+      z-index: 80;
       display: none;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.8);
     }
 
     #controls-modal.active {
       display: block;
     }
 
-    .modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 18px;
-    }
-
-    .modal-header h3 {
-      font-size: 1.2rem;
-      color: var(--primary);
-    }
-
-    .key-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-bottom: 20px;
-    }
-
-    .key-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 8px 12px;
-      background: rgba(255, 255, 255, 0.03);
-      border-radius: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.05);
-    }
-
-    .key-badge {
-      background: #1f2a40;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 4px;
-      padding: 2px 8px;
-      font-family: monospace;
-      font-weight: 700;
-      font-size: 0.85rem;
-      color: var(--primary);
-      box-shadow: 0 2px 0 rgba(0,0,0,0.5);
-    }
-
-    /* MODAL BACKDROP */
-    #modal-backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.7);
-      backdrop-filter: blur(4px);
-      z-index: 110;
+    .modal-backdrop {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.6);
+      z-index: 70;
       display: none;
     }
 
-    #modal-backdrop.active {
+    .modal-backdrop.active {
       display: block;
     }
 
-    /* FLOATING QUICK BAR */
-    .quick-dock {
-      position: absolute;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(18, 24, 38, 0.88);
-      backdrop-filter: blur(12px);
-      border: 1px solid var(--surface-border);
-      border-radius: 30px;
-      padding: 6px 14px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      z-index: 70;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.6);
-      transition: opacity 0.3s;
+    .key-table {
+      width: 100%;
+      margin: 16px 0;
+      border-collapse: collapse;
+      font-size: 0.85rem;
     }
 
-    .quick-dock:hover {
-      opacity: 1;
+    .key-table td {
+      padding: 8px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .key-badge {
+      display: inline-block;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: monospace;
+      font-size: 0.8rem;
     }
   </style>
 </head>
 <body>
-
   <!-- HEADER -->
   <header>
     <div class="brand">
-      <span style="font-size: 1.4rem;">☀️</span>
-      <span>Sunshine Cast</span>
+      <span>☀️ Sunshine Cast</span>
       <span class="brand-badge">Remote Play</span>
     </div>
 
     <div class="header-center">
       <div class="stat-chip">
         <span class="status-dot" id="status-indicator"></span>
-        <span id="connection-status">Connected</span>
+        <span id="connection-status">Connecting...</span>
       </div>
       <div class="stat-chip">
         <span>Active:</span>
@@ -515,14 +505,26 @@ object WebClientHtml {
     </div>
   </header>
 
+  <!-- INSECURE HTTP TIP BANNER -->
+  <div id="insecure-http-banner">
+    <span>
+      ⚡ <strong>MSE Hardware Player Active:</strong> Playing over plain HTTP. For lowest input lag WebCodecs (&lt;5ms), enable flag in Chrome: <code style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px; user-select: all;">chrome://flags/#unsafely-treat-insecure-origin-as-secure</code> and add your phone IP.
+    </span>
+    <button onclick="document.getElementById('insecure-http-banner').style.display='none'" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1rem; padding: 0 4px;">✕</button>
+  </div>
+
   <!-- MAIN STREAM AREA -->
   <main>
     <div id="stream-container" class="scale-fit">
-      <canvas id="stream-canvas"></canvas>
+      <!-- WebCodecs Canvas -->
+      <canvas id="stream-canvas" style="display:none;"></canvas>
+      <!-- MediaSource MSE Video element (works everywhere on plain HTTP on LAN) -->
+      <video id="stream-video" autoplay playsinline muted style="display:none;"></video>
       <div id="touch-cursor"></div>
 
       <!-- Live Performance HUD -->
       <div class="stream-hud">
+        <span id="hud-engine">Engine...</span>
         <span id="hud-fps">0 FPS</span>
         <span id="hud-bitrate">0.0 Mbps</span>
         <span id="hud-latency">0 ms RTT</span>
@@ -549,64 +551,50 @@ object WebClientHtml {
           ✕ Close to Stream
         </button>
       </div>
-
       <div class="games-grid" id="games-grid">
-        <!-- Dynamically populated from /api/apps -->
+        <!-- Loaded dynamically from phone via /api/apps -->
       </div>
     </div>
   </main>
 
-  <!-- KEYBOARD CONTROLS MODAL -->
-  <div id="modal-backdrop"></div>
+  <!-- CONTROLS GUIDE MODAL -->
+  <div class="modal-backdrop" id="modal-backdrop"></div>
   <div id="controls-modal">
-    <div class="modal-header">
-      <h3>🎮 Laptop Keyboard & Mouse Control Mapping</h3>
-      <button id="btn-close-modal" class="btn-icon">✕</button>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+      <h3>🎮 Laptop Keyboard & Mouse Controls</h3>
+      <button id="btn-close-modal" style="background:none; border:none; color:var(--text-muted); font-size: 1.2rem; cursor:pointer;">✕</button>
     </div>
-    <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 16px;">
-      Your laptop keyboard and mouse are directly bridged to your phone with ultra-low latency. Standard game & PSP emulator controls:
+    <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
+      Keys and mouse clicks are captured with ultra-low latency and relayed straight to your phone and running emulator.
     </p>
-    <div class="key-grid">
-      <div class="key-row">
-        <span>D-Pad / Movement</span>
-        <span class="key-badge">W / A / S / D or Arrows</span>
-      </div>
-      <div class="key-row">
-        <span>Cross (A) / Accept</span>
-        <span class="key-badge">K or Space</span>
-      </div>
-      <div class="key-row">
-        <span>Circle (B) / Back</span>
-        <span class="key-badge">L or Esc</span>
-      </div>
-      <div class="key-row">
-        <span>Square (X) / Attack</span>
-        <span class="key-badge">J</span>
-      </div>
-      <div class="key-row">
-        <span>Triangle (Y) / Special</span>
-        <span class="key-badge">I</span>
-      </div>
-      <div class="key-row">
-        <span>L Bumper (Trigger)</span>
-        <span class="key-badge">Q</span>
-      </div>
-      <div class="key-row">
-        <span>R Bumper (Trigger)</span>
-        <span class="key-badge">E</span>
-      </div>
-      <div class="key-row">
-        <span>Start / Pause</span>
-        <span class="key-badge">Enter</span>
-      </div>
-      <div class="key-row">
-        <span>Select / Menu</span>
-        <span class="key-badge">Shift</span>
-      </div>
-      <div class="key-row">
-        <span>Mouse Click & Drag</span>
-        <span class="key-badge">Touch Tap / Swipe</span>
-      </div>
+    <table class="key-table">
+      <tr>
+        <td><span class="key-badge">W / A / S / D</span> or <span class="key-badge">Arrows</span></td>
+        <td>D-Pad / Analog Direction Movement</td>
+      </tr>
+      <tr>
+        <td><span class="key-badge">J / K / U / I</span></td>
+        <td>PSP / Gamepad Action Buttons (Cross, Circle, Square, Triangle)</td>
+      </tr>
+      <tr>
+        <td><span class="key-badge">Q / E</span></td>
+        <td>Shoulder Buttons (L1 / R1)</td>
+      </tr>
+      <tr>
+        <td><span class="key-badge">Enter / Space</span></td>
+        <td>Start / Select / Jump</td>
+      </tr>
+      <tr>
+        <td><span class="key-badge">Left Mouse Click</span></td>
+        <td>Direct On-Screen Touch / Tap</td>
+      </tr>
+      <tr>
+        <td><span class="key-badge">Escape</span></td>
+        <td>Toggle Game Launcher / Back to Menu</td>
+      </tr>
+    </table>
+    <div style="background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.2); border-radius: 8px; padding: 10px; font-size: 0.8rem; margin-bottom: 16px;">
+      💡 <strong>Pro-Tip:</strong> Use the scaling dropdown above to pick <strong>16:10 Laptop Match</strong> or <strong>Fill Screen</strong> to maximize your screen area and eliminate letterboxing!
     </div>
     <div style="text-align: right;">
       <button id="btn-modal-ok" class="btn-icon" style="background: var(--primary); color: #000; font-weight: 700;">Got It!</button>
@@ -617,10 +605,13 @@ object WebClientHtml {
     // --- STATE & CLIENT CONFIGURATION ---
     let ws = null;
     let videoDecoder = null;
+    let jmuxer = null;
+    let useWebCodecs = ('VideoDecoder' in window);
     let audioContext = null;
     let isConnected = false;
     let canvas = document.getElementById('stream-canvas');
     let ctx = canvas.getContext('2d');
+    let videoElement = document.getElementById('stream-video');
     let streamContainer = document.getElementById('stream-container');
     let touchCursor = document.getElementById('touch-cursor');
     let audioEnabled = true;
@@ -803,10 +794,12 @@ object WebClientHtml {
       modalBackdrop.classList.remove('active');
     });
 
-    // --- WEBCODECS VIDEO DECODER PIPELINE ---
+    // --- DUAL-ENGINE VIDEO DECODER PIPELINE ---
+    // Engine A: WebCodecs (Hardware <5ms for Secure Contexts/localhost)
+    // Engine B: MediaSource MSE with JMuxer (Hardware fMP4 for plain HTTP on LAN)
     let hasReceivedKeyframe = false;
     let lastKeyframeRequestTime = 0;
-    let currentCodecStr = 'avc1.42E01F';
+    let currentCodecStr = 'avc1.420029';
 
     function extractSpsInfo(data) {
       for (let i = 0; i < data.length - 4; i++) {
@@ -832,9 +825,28 @@ object WebClientHtml {
       return null;
     }
 
+    function initDisplayEngine(codecStr) {
+      if ('VideoDecoder' in window) {
+        useWebCodecs = true;
+        canvas.style.display = 'block';
+        videoElement.style.display = 'none';
+        document.getElementById('hud-engine').innerText = 'WebCodecs (<5ms)';
+        document.getElementById('hud-engine').style.color = 'var(--primary)';
+        document.getElementById('insecure-http-banner').style.display = 'none';
+        videoDecoder = initVideoDecoder(codecStr);
+      } else {
+        useWebCodecs = false;
+        canvas.style.display = 'none';
+        videoElement.style.display = 'block';
+        document.getElementById('hud-engine').innerText = 'MSE Player (Hardware fMP4)';
+        document.getElementById('hud-engine').style.color = 'var(--success)';
+        document.getElementById('insecure-http-banner').style.display = 'flex';
+        initJMuxer();
+      }
+    }
+
     function initVideoDecoder(codecStr) {
       if (!('VideoDecoder' in window)) {
-        console.warn('WebCodecs VideoDecoder API not supported in this browser');
         return null;
       }
 
@@ -842,7 +854,7 @@ object WebClientHtml {
         try { videoDecoder.close(); } catch (e) {}
       }
 
-      const targetCodec = codecStr || currentCodecStr || 'avc1.42E01F';
+      const targetCodec = codecStr || currentCodecStr || 'avc1.420029';
       try {
         const decoder = new VideoDecoder({
           output: (frame) => {
@@ -871,11 +883,46 @@ object WebClientHtml {
         });
 
         currentCodecStr = targetCodec;
-        console.log('VideoDecoder configured successfully with codec:', targetCodec);
+        console.log('WebCodecs VideoDecoder configured successfully with codec:', targetCodec);
         return decoder;
       } catch (e) {
         console.error('Failed to configure VideoDecoder with ' + targetCodec + ':', e);
+        // Fallback to MSE
+        useWebCodecs = false;
+        canvas.style.display = 'none';
+        videoElement.style.display = 'block';
+        initJMuxer();
         return null;
+      }
+    }
+
+    function initJMuxer() {
+      if (typeof JMuxer === 'undefined') {
+        console.log('Waiting for JMuxer library to load...');
+        setTimeout(initJMuxer, 150);
+        return;
+      }
+
+      if (jmuxer) {
+        try { jmuxer.destroy(); } catch (e) {}
+      }
+
+      try {
+        jmuxer = new JMuxer({
+          node: 'stream-video',
+          mode: 'video',
+          flushingTime: 0,
+          fps: 60,
+          clearBuffer: true,
+          onError: function(err) {
+            console.warn('JMuxer player message:', err);
+          }
+        });
+        videoElement.muted = true;
+        videoElement.play().catch(() => {});
+        console.log('JMuxer MSE player successfully started for plain HTTP stream');
+      } catch (err) {
+        console.error('Failed to init JMuxer:', err);
       }
     }
 
@@ -912,7 +959,7 @@ object WebClientHtml {
         source.connect(audioContext.destination);
         source.start();
       } catch (e) {
-        // audio jitter buffer handling
+        // audio buffer handling
       }
     }
 
@@ -936,7 +983,7 @@ object WebClientHtml {
         document.getElementById('connection-status').innerText = 'Streaming';
         document.getElementById('status-indicator').style.background = 'var(--success)';
         initAudio();
-        videoDecoder = initVideoDecoder();
+        initDisplayEngine();
         requestKeyframe();
         startPingTimer();
       };
@@ -989,36 +1036,65 @@ object WebClientHtml {
         const ptsUs = Number(view.getBigInt64(2, false));
         const naluData = new Uint8Array(buffer, 10);
 
-        if (isKey) {
-          const detectedCodec = extractSpsInfo(naluData);
-          if (detectedCodec && (!videoDecoder || videoDecoder.state !== 'configured' || currentCodecStr !== detectedCodec)) {
-            console.log('Stream SPS detected, reconfiguring decoder with ' + detectedCodec);
-            videoDecoder = initVideoDecoder(detectedCodec);
+        if (useWebCodecs) {
+          // --- ENGINE A: WebCodecs Pipeline ---
+          if (isKey) {
+            const detectedCodec = extractSpsInfo(naluData);
+            if (detectedCodec && (!videoDecoder || videoDecoder.state !== 'configured' || currentCodecStr !== detectedCodec)) {
+              console.log('Stream SPS detected, reconfiguring decoder with ' + detectedCodec);
+              videoDecoder = initVideoDecoder(detectedCodec);
+            }
+            hasReceivedKeyframe = true;
           }
-          hasReceivedKeyframe = true;
-        }
 
-        // Drop delta frames until the first keyframe has been received and decoder is primed
-        if (!hasReceivedKeyframe) {
-          const now = performance.now();
-          if (now - lastKeyframeRequestTime > 800) {
-            requestKeyframe();
-            lastKeyframeRequestTime = now;
+          // Drop delta frames until the first keyframe has been received and decoder is primed
+          if (!hasReceivedKeyframe) {
+            const now = performance.now();
+            if (now - lastKeyframeRequestTime > 800) {
+              requestKeyframe();
+              lastKeyframeRequestTime = now;
+            }
+            return;
           }
-          return;
-        }
 
-        if (videoDecoder && videoDecoder.state === 'configured') {
-          try {
-            videoDecoder.decode(new EncodedVideoChunk({
-              type: isKey ? 'key' : 'delta',
-              timestamp: ptsUs,
-              data: naluData
-            }));
-          } catch (err) {
-            console.warn('Decoder chunk decode failed:', err);
-            hasReceivedKeyframe = false;
-            requestKeyframe();
+          if (videoDecoder && videoDecoder.state === 'configured') {
+            try {
+              videoDecoder.decode(new EncodedVideoChunk({
+                type: isKey ? 'key' : 'delta',
+                timestamp: ptsUs,
+                data: naluData
+              }));
+            } catch (err) {
+              console.warn('Decoder chunk decode failed:', err);
+              hasReceivedKeyframe = false;
+              requestKeyframe();
+            }
+          }
+        } else {
+          // --- ENGINE B: MediaSource MSE / JMuxer Pipeline ---
+          if (!jmuxer && typeof JMuxer !== 'undefined') {
+            initJMuxer();
+          }
+          if (jmuxer) {
+            try {
+              jmuxer.feed({
+                video: naluData
+              });
+              frameCount++;
+
+              if (videoElement.paused) {
+                videoElement.play().catch(() => {});
+              }
+              // Prevent buffer accumulation to preserve ultra-low latency
+              if (videoElement.buffered && videoElement.buffered.length > 0) {
+                const liveEdge = videoElement.buffered.end(videoElement.buffered.length - 1);
+                if (liveEdge - videoElement.currentTime > 0.3) {
+                  videoElement.currentTime = liveEdge - 0.02;
+                }
+              }
+            } catch (err) {
+              console.warn('JMuxer feed error:', err);
+            }
           }
         }
       } else if (packetType === 0x02) {
@@ -1055,9 +1131,14 @@ object WebClientHtml {
 
     // --- INPUT CONTROLS: LAPTOP KEYBOARD, MOUSE & TOUCH BRIDGING ---
 
+    function getActiveDisplay() {
+      return (useWebCodecs && canvas.style.display !== 'none') ? canvas : videoElement;
+    }
+
     // Calculate normalized coordinates taking into account scaling mode
     function getNormalizedCoords(e) {
-      const rect = canvas.getBoundingClientRect();
+      const el = getActiveDisplay();
+      const rect = el.getBoundingClientRect();
       const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
       const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
       return { x, y };
@@ -1065,7 +1146,8 @@ object WebClientHtml {
 
     // Mouse Input
     let isMouseDown = false;
-    canvas.addEventListener('mousedown', (e) => {
+    streamContainer.addEventListener('mousedown', (e) => {
+      if (e.target.closest('#quick-dock') || e.target.closest('.stream-hud')) return;
       initAudio();
       isMouseDown = true;
       const { x, y } = getNormalizedCoords(e);
@@ -1094,7 +1176,8 @@ object WebClientHtml {
       }
     });
 
-    canvas.addEventListener('mousemove', (e) => {
+    streamContainer.addEventListener('mousemove', (e) => {
+      if (e.target.closest('#quick-dock') || e.target.closest('.stream-hud')) return;
       const { x, y } = getNormalizedCoords(e);
       if (isMouseDown) {
         sendInput({
@@ -1123,11 +1206,12 @@ object WebClientHtml {
     // Pointer Lock for FPS / Game controls
     const dockBtnLock = document.getElementById('dock-btn-lock');
     dockBtnLock.addEventListener('click', () => {
-      canvas.requestPointerLock = canvas.requestPointerLock || canvas.mozRequestPointerLock;
-      canvas.requestPointerLock();
+      const el = getActiveDisplay();
+      el.requestPointerLock = el.requestPointerLock || el.mozRequestPointerLock;
+      el.requestPointerLock();
     });
 
-    // Laptop Keyboard Capture (preventing default browser shortcuts like F11 or Esc if desired)
+    // Laptop Keyboard Capture
     window.addEventListener('keydown', (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
 
