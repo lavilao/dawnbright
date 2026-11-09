@@ -804,12 +804,45 @@ object WebClientHtml {
     });
 
     // --- WEBCODECS VIDEO DECODER PIPELINE ---
-    function initVideoDecoder() {
+    let hasReceivedKeyframe = false;
+    let lastKeyframeRequestTime = 0;
+    let currentCodecStr = 'avc1.42E01F';
+
+    function extractSpsInfo(data) {
+      for (let i = 0; i < data.length - 4; i++) {
+        let nalOffset = -1;
+        if (data[i] === 0 && data[i + 1] === 0 && data[i + 2] === 1) {
+          nalOffset = i + 3;
+        } else if (data[i] === 0 && data[i + 1] === 0 && data[i + 2] === 0 && data[i + 3] === 1) {
+          nalOffset = i + 4;
+        }
+        if (nalOffset !== -1 && nalOffset < data.length) {
+          const nalType = data[nalOffset] & 0x1F;
+          if (nalType === 7 && nalOffset + 3 < data.length) {
+            const profileIdc = data[nalOffset + 1];
+            const profileIop = data[nalOffset + 2];
+            const levelIdc = data[nalOffset + 3];
+            const pIdcHex = profileIdc.toString(16).padStart(2, '0');
+            const pIopHex = profileIop.toString(16).padStart(2, '0');
+            const lvlHex = levelIdc.toString(16).padStart(2, '0');
+            return 'avc1.' + pIdcHex + pIopHex + lvlHex;
+          }
+        }
+      }
+      return null;
+    }
+
+    function initVideoDecoder(codecStr) {
       if (!('VideoDecoder' in window)) {
-        console.warn('WebCodecs VideoDecoder API not supported in this browser, falling back to frame rendering');
+        console.warn('WebCodecs VideoDecoder API not supported in this browser');
         return null;
       }
 
+      if (videoDecoder && videoDecoder.state !== 'closed') {
+        try { videoDecoder.close(); } catch (e) {}
+      }
+
+      const targetCodec = codecStr || currentCodecStr || 'avc1.42E01F';
       try {
         const decoder = new VideoDecoder({
           output: (frame) => {
@@ -822,22 +855,26 @@ object WebClientHtml {
             frameCount++;
           },
           error: (e) => {
-            console.error('VideoDecoder error:', e);
-            requestKeyframe();
+            console.warn('VideoDecoder error encountered:', e);
+            hasReceivedKeyframe = false;
+            setTimeout(() => {
+              videoDecoder = initVideoDecoder('avc1.640028');
+              requestKeyframe();
+            }, 100);
           }
         });
 
-        // Configure for H.264 Baseline / Main profile (avc1.42E01F / avc1.640028)
         decoder.configure({
-          codec: 'avc1.42E01F',
+          codec: targetCodec,
           optimizeForLatency: true,
           hardwareAcceleration: 'prefer-hardware'
         });
 
-        console.log('Hardware WebCodecs VideoDecoder initialized with prefer-hardware');
+        currentCodecStr = targetCodec;
+        console.log('VideoDecoder configured successfully with codec:', targetCodec);
         return decoder;
       } catch (e) {
-        console.error('Failed to configure VideoDecoder:', e);
+        console.error('Failed to configure VideoDecoder with ' + targetCodec + ':', e);
         return null;
       }
     }
@@ -952,6 +989,25 @@ object WebClientHtml {
         const ptsUs = Number(view.getBigInt64(2, false));
         const naluData = new Uint8Array(buffer, 10);
 
+        if (isKey) {
+          const detectedCodec = extractSpsInfo(naluData);
+          if (detectedCodec && (!videoDecoder || videoDecoder.state !== 'configured' || currentCodecStr !== detectedCodec)) {
+            console.log('Stream SPS detected, reconfiguring decoder with ' + detectedCodec);
+            videoDecoder = initVideoDecoder(detectedCodec);
+          }
+          hasReceivedKeyframe = true;
+        }
+
+        // Drop delta frames until the first keyframe has been received and decoder is primed
+        if (!hasReceivedKeyframe) {
+          const now = performance.now();
+          if (now - lastKeyframeRequestTime > 800) {
+            requestKeyframe();
+            lastKeyframeRequestTime = now;
+          }
+          return;
+        }
+
         if (videoDecoder && videoDecoder.state === 'configured') {
           try {
             videoDecoder.decode(new EncodedVideoChunk({
@@ -961,6 +1017,7 @@ object WebClientHtml {
             }));
           } catch (err) {
             console.warn('Decoder chunk decode failed:', err);
+            hasReceivedKeyframe = false;
             requestKeyframe();
           }
         }

@@ -6,6 +6,7 @@ import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.media.projection.MediaProjection
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.Surface
@@ -25,6 +26,9 @@ class HardwareVideoEncoder(
         private const val TAG = "HardwareVideoEncoder"
         private const val MIME_TYPE = MediaFormat.MIMETYPE_VIDEO_AVC // H.264
         private const val TIMEOUT_US = 10_000L
+
+        @Volatile
+        var latestSyncFrame: ByteArray? = null
     }
 
     private var mediaCodec: MediaCodec? = null
@@ -33,8 +37,7 @@ class HardwareVideoEncoder(
     private var encodingJob: Job? = null
     private val isRunning = AtomicBoolean(false)
 
-    private var cachedSps: ByteArray? = null
-    private var cachedPps: ByteArray? = null
+    private var cachedConfigHeader: ByteArray? = null
 
     fun start(mediaProjection: MediaProjection, scope: CoroutineScope) {
         if (isRunning.getAndSet(true)) return
@@ -52,6 +55,15 @@ class HardwareVideoEncoder(
                 setInteger(MediaFormat.KEY_BIT_RATE, config.bitrateBps)
                 setInteger(MediaFormat.KEY_FRAME_RATE, config.fps)
                 setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1) // Keyframe every 1s for instant sync
+
+                // Prepend SPS/PPS headers to EVERY sync frame so connected browsers never miss decoder config
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        setInteger(MediaFormat.KEY_PREPEND_HEADER_TO_SYNC_FRAMES, 1)
+                    } else {
+                        setInteger("prepend-sps-pps-to-idr-frames", 1)
+                    }
+                } catch (_: Exception) {}
 
                 // Attempt CBR rate control mode first
                 try {
@@ -72,7 +84,7 @@ class HardwareVideoEncoder(
             try {
                 codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
             } catch (e: Exception) {
-                Log.w(TAG, "Configure with initial parameters failed, falling back to VBR: ${e.message}")
+                Log.w(TAG, "Configure with CBR failed, falling back to VBR: ${e.message}")
                 format.setInteger(
                     MediaFormat.KEY_BITRATE_MODE,
                     MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR
@@ -140,9 +152,15 @@ class HardwareVideoEncoder(
                         spsBuffer.get(sps)
                         val pps = ByteArray(ppsBuffer.remaining())
                         ppsBuffer.get(pps)
-                        cachedSps = sps
-                        cachedPps = pps
+
+                        val combined = ByteArray(sps.size + pps.size)
+                        System.arraycopy(sps, 0, combined, 0, sps.size)
+                        System.arraycopy(pps, 0, combined, sps.size, pps.size)
+                        cachedConfigHeader = combined
                         onSpsPpsAvailable(sps, pps)
+
+                        // Immediately broadcast config packet
+                        onFrameEncoded(combined, true, System.nanoTime() / 1000)
                     }
                 } else if (outputBufferIndex >= 0) {
                     val outputBuffer = codec.getOutputBuffer(outputBufferIndex)
@@ -153,24 +171,26 @@ class HardwareVideoEncoder(
                         val isConfig = (bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0
                         val isKeyFrame = (bufferInfo.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0
 
-                        if (isConfig) {
-                            val configBytes = ByteArray(bufferInfo.size)
-                            outputBuffer.get(configBytes)
-                            parseSpsPpsFromConfig(configBytes)
-                        } else {
-                            val frameBytes = ByteArray(bufferInfo.size)
-                            outputBuffer.get(frameBytes)
+                        val frameBytes = ByteArray(bufferInfo.size)
+                        outputBuffer.get(frameBytes)
 
-                            val finalData = if (isKeyFrame && cachedSps != null && cachedPps != null && !hasSpsPrefix(frameBytes)) {
-                                val sps = cachedSps!!
-                                val pps = cachedPps!!
-                                val combined = ByteArray(sps.size + pps.size + frameBytes.size)
-                                System.arraycopy(sps, 0, combined, 0, sps.size)
-                                System.arraycopy(pps, 0, combined, sps.size, pps.size)
-                                System.arraycopy(frameBytes, 0, combined, sps.size + pps.size, frameBytes.size)
+                        if (isConfig) {
+                            cachedConfigHeader = frameBytes
+                            latestSyncFrame = frameBytes
+                            onFrameEncoded(frameBytes, true, bufferInfo.presentationTimeUs)
+                        } else {
+                            val finalData = if (isKeyFrame && cachedConfigHeader != null && !hasSpsPrefix(frameBytes)) {
+                                val header = cachedConfigHeader!!
+                                val combined = ByteArray(header.size + frameBytes.size)
+                                System.arraycopy(header, 0, combined, 0, header.size)
+                                System.arraycopy(frameBytes, 0, combined, header.size, frameBytes.size)
                                 combined
                             } else {
                                 frameBytes
+                            }
+
+                            if (isKeyFrame) {
+                                latestSyncFrame = finalData
                             }
 
                             onFrameEncoded(finalData, isKeyFrame, bufferInfo.presentationTimeUs)
@@ -188,31 +208,17 @@ class HardwareVideoEncoder(
     }
 
     private fun hasSpsPrefix(bytes: ByteArray): Boolean {
-        if (bytes.size < 5) return false
-        val nalType = bytes[4].toInt() and 0x1F
-        return nalType == 7
-    }
-
-    private fun parseSpsPpsFromConfig(bytes: ByteArray) {
-        try {
-            val delimiters = mutableListOf<Int>()
-            for (i in 0 until bytes.size - 4) {
-                if (bytes[i] == 0.toByte() && bytes[i + 1] == 0.toByte() &&
-                    bytes[i + 2] == 0.toByte() && bytes[i + 3] == 1.toByte()
-                ) {
-                    delimiters.add(i)
-                }
-            }
-            if (delimiters.size >= 2) {
-                val sps = bytes.copyOfRange(delimiters[0], delimiters[1])
-                val pps = bytes.copyOfRange(delimiters[1], bytes.size)
-                cachedSps = sps
-                cachedPps = pps
-                onSpsPpsAvailable(sps, pps)
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to parse config bytes: ${e.message}")
+        // 4-byte start code 00 00 00 01
+        if (bytes.size >= 5 && bytes[0] == 0.toByte() && bytes[1] == 0.toByte() && bytes[2] == 0.toByte() && bytes[3] == 1.toByte()) {
+            val nalType = bytes[4].toInt() and 0x1F
+            return nalType == 7
         }
+        // 3-byte start code 00 00 01
+        if (bytes.size >= 4 && bytes[0] == 0.toByte() && bytes[1] == 0.toByte() && bytes[2] == 1.toByte()) {
+            val nalType = bytes[3].toInt() and 0x1F
+            return nalType == 7
+        }
+        return false
     }
 
     fun stop() {

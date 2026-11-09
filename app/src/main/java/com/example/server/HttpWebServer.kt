@@ -245,6 +245,19 @@ class HttpWebServer(
         activeWsClients.add(wsClient)
         Log.i(TAG, "WebSocket client connected. Total clients: ${activeWsClients.size}")
 
+        // Send cached sync frame / SPS-PPS immediately so client decoder initializes at millisecond 0
+        val syncFrame = com.example.encoder.HardwareVideoEncoder.latestSyncFrame
+        if (syncFrame != null) {
+            val packet = ByteArray(10 + syncFrame.size)
+            packet[0] = PACKET_TYPE_VIDEO
+            packet[1] = 1 // Keyframe
+            val bb = ByteBuffer.wrap(packet, 2, 8)
+            bb.putLong(System.nanoTime() / 1000)
+            System.arraycopy(syncFrame, 0, packet, 10, syncFrame.size)
+            wsClient.sendBinary(packet)
+            Log.i(TAG, "Sent initial sync frame to new client (${syncFrame.size} bytes)")
+        }
+
         // Send initial keyframe request
         onKeyFrameRequested()
 
