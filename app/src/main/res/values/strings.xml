@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Sunshine Cast</string>
+    <string name="accessibility_service_description">Enables Sunshine Cast to inject laptop keyboard and mouse inputs directly into games and emulators on your phone.</string>
 </resources>

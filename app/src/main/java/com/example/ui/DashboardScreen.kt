@@ -76,6 +76,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.service.OverlayInputService
+import com.example.service.SunshineAccessibilityService
 import com.example.ui.components.ConfigDialog
 import com.example.ui.components.GameCardItem
 import com.example.ui.components.KeymapGuideDialog
@@ -390,6 +391,78 @@ fun DashboardScreen(
                                 fontSize = 14.sp,
                                 color = if (serverStatus.isRunning) Color.White else Color.Black
                             )
+                        }
+                    }
+                }
+            }
+
+            // 2.5. ACCESSIBILITY REMOTE CONTROL PERMISSION CARD
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                val isAccessActive = SunshineAccessibilityService.isServiceActive
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = NavySlateCard),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(
+                            1.dp,
+                            if (isAccessActive) SunshineEmerald.copy(alpha = 0.5f) else SunshineAmber.copy(alpha = 0.5f),
+                            RoundedCornerShape(16.dp)
+                        )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(if (isAccessActive) "🎮" else "⚠️", fontSize = 22.sp)
+                            Column {
+                                Text(
+                                    text = if (isAccessActive) "Remote Control Active" else "Remote Control Input Required",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = if (isAccessActive) SunshineEmerald else SunshineAmber
+                                )
+                                Text(
+                                    text = if (isAccessActive)
+                                        "Laptop keyboard, mouse clicks & touches will be injected into games on your phone."
+                                    else
+                                        "Turn on Sunshine Cast in Accessibility Settings so laptop inputs can control your games.",
+                                    fontSize = 11.sp,
+                                    color = TextSecondary,
+                                    lineHeight = 15.sp,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                            }
+                        }
+
+                        if (!isAccessActive) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    val intent = Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                    }
+                                    context.startActivity(intent)
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = SunshineAmber),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = "Enable",
+                                    color = Color.Black,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
+                            }
                         }
                     }
                 }

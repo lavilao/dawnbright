@@ -932,14 +932,17 @@ object WebClientHtml {
       }
     }
 
-    // --- AUDIO PIPELINE (Web Audio API) ---
+    // --- REAL-TIME LOW-LATENCY AUDIO PIPELINE (Web Audio API) ---
+    let nextAudioTime = 0;
+
     function initAudio() {
       if (!audioContext) {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 });
+        audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000, latencyHint: 'interactive' });
       }
       if (audioContext.state === 'suspended') {
         audioContext.resume();
       }
+      nextAudioTime = 0;
     }
 
     function playAudioChunk(pcmData) {
@@ -957,7 +960,15 @@ object WebClientHtml {
         const source = audioContext.createBufferSource();
         source.buffer = buffer;
         source.connect(audioContext.destination);
-        source.start();
+
+        const curTime = audioContext.currentTime;
+        // Keep audio tightly synchronized to real-time (<40ms). If drift occurs, snap immediately to live edge.
+        if (nextAudioTime < curTime || nextAudioTime > curTime + 0.06) {
+          nextAudioTime = curTime + 0.01;
+        }
+
+        source.start(nextAudioTime);
+        nextAudioTime += buffer.duration;
       } catch (e) {
         // audio buffer handling
       }
