@@ -58,11 +58,15 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -109,6 +113,48 @@ fun DashboardScreen(
 
     var showConfigDialog by remember { mutableStateOf(false) }
     var showKeymapDialog by remember { mutableStateOf(false) }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var isAccessActive by remember { mutableStateOf(false) }
+    var isImeActive by remember { mutableStateOf(false) }
+
+    fun checkAccess(): Boolean {
+        if (SunshineAccessibilityService.isServiceActive) return true
+        val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as? android.view.accessibility.AccessibilityManager
+        if (am != null) {
+            val enabledList = am.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+            if (enabledList.any { it.resolveInfo.serviceInfo.packageName == context.packageName }) {
+                return true
+            }
+        }
+        val enabled = Settings.Secure.getString(
+            context.contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: return false
+        return enabled.contains(context.packageName)
+    }
+
+    fun checkIme(): Boolean {
+        if (com.example.service.SunshineKeyboardService.isServiceActive) return true
+        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
+        val enabledImes = imm?.enabledInputMethodList ?: emptyList()
+        return enabledImes.any { it.packageName == context.packageName }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                isAccessActive = checkAccess()
+                isImeActive = checkIme()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        isAccessActive = checkAccess()
+        isImeActive = checkIme()
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     Scaffold(
         contentWindowInsets = WindowInsets.safeDrawing,
@@ -396,9 +442,8 @@ fun DashboardScreen(
                 }
             }
 
-            // 2.5. ACCESSIBILITY REMOTE CONTROL PERMISSION CARD
+            // 2.5. ACCESSIBILITY & REMOTE KEYBOARD PERMISSION CARD
             item(span = { GridItemSpan(maxLineSpan) }) {
-                val isAccessActive = SunshineAccessibilityService.isServiceActive
                 Card(
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = NavySlateCard),
@@ -410,58 +455,111 @@ fun DashboardScreen(
                             RoundedCornerShape(16.dp)
                         )
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
                         Row(
-                            modifier = Modifier.weight(1f),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(if (isAccessActive) "🎮" else "⚠️", fontSize = 22.sp)
-                            Column {
-                                Text(
-                                    text = if (isAccessActive) "Remote Control Active" else "Remote Control Input Required",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
-                                    color = if (isAccessActive) SunshineEmerald else SunshineAmber
-                                )
-                                Text(
-                                    text = if (isAccessActive)
-                                        "Laptop keyboard, mouse clicks & touches will be injected into games on your phone."
-                                    else
-                                        "Turn on Sunshine Cast in Accessibility Settings so laptop inputs can control your games.",
-                                    fontSize = 11.sp,
-                                    color = TextSecondary,
-                                    lineHeight = 15.sp,
-                                    modifier = Modifier.padding(top = 2.dp)
-                                )
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Text(if (isAccessActive) "🟢" else "⚠️", fontSize = 22.sp)
+                                Column {
+                                    Text(
+                                        text = if (isAccessActive) "Remote Mouse & Touch Controls: ACTIVE" else "Remote Control: Inactive",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = if (isAccessActive) SunshineEmerald else SunshineAmber
+                                    )
+                                    Text(
+                                        text = if (isAccessActive)
+                                            "Laptop mouse clicks, touches & keys are injected directly into games."
+                                        else
+                                            "Turn on Sunshine Cast in Accessibility Settings so laptop inputs can control games.",
+                                        fontSize = 11.sp,
+                                        color = TextSecondary,
+                                        lineHeight = 15.sp,
+                                        modifier = Modifier.padding(top = 2.dp)
+                                    )
+                                }
+                            }
+
+                            if (!isAccessActive) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    onClick = {
+                                        val intent = Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                        }
+                                        context.startActivity(intent)
+                                    },
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = SunshineAmber),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = "Enable",
+                                        color = Color.Black,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp
+                                    )
+                                }
                             }
                         }
 
-                        if (!isAccessActive) {
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Button(
-                                onClick = {
-                                    val intent = Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                    }
-                                    context.startActivity(intent)
-                                },
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = SunshineAmber),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        // KDE Connect Remote Keyboard Sub-card
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFF0F1523))
+                                .padding(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = "Enable",
-                                    color = Color.Black,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp
-                                )
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text("⌨️", fontSize = 16.sp)
+                                    Column {
+                                        Text(
+                                            text = if (isImeActive) "KDE Connect Remote Keyboard: Active" else "KDE Connect Keyboard: Optional",
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 12.sp,
+                                            color = if (isImeActive) SunshineCyan else TextPrimary
+                                        )
+                                        Text(
+                                            text = "Send the entire laptop keyboard (all keys, words & game keys) to phone.",
+                                            fontSize = 10.sp,
+                                            color = TextMuted
+                                        )
+                                    }
+                                }
+
+                                if (!isImeActive) {
+                                    Button(
+                                        onClick = {
+                                            val intent = Intent(android.provider.Settings.ACTION_INPUT_METHOD_SETTINGS).apply {
+                                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                            }
+                                            context.startActivity(intent)
+                                        },
+                                        shape = RoundedCornerShape(8.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = SunshineCyan.copy(alpha = 0.2f)),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                    ) {
+                                        Text("Setup", color = SunshineCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
                             }
                         }
                     }

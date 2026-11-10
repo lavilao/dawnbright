@@ -65,6 +65,7 @@ object WebClientHtml {
       padding: 0 16px;
       z-index: 100;
       flex-shrink: 0;
+      transition: transform 0.25s ease, opacity 0.25s ease;
     }
 
     .brand {
@@ -173,6 +174,56 @@ object WebClientHtml {
       justify-content: space-between;
       align-items: center;
       z-index: 99;
+    }
+
+    /* IMMERSIVE CLEAN MODE (Hide all UI clutter while streaming games) */
+    body.clean-mode header {
+      display: none !important;
+    }
+
+    body.clean-mode .stream-hud {
+      display: none !important;
+    }
+
+    body.clean-mode .quick-dock {
+      display: none !important;
+    }
+
+    body.clean-mode #insecure-http-banner {
+      display: none !important;
+    }
+
+    #clean-mode-floating-btn {
+      position: absolute;
+      top: 12px;
+      right: 16px;
+      background: rgba(18, 24, 38, 0.75);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--surface-border);
+      color: var(--text-muted);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      display: none;
+      z-index: 1001;
+      transition: all 0.2s;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    }
+
+    #clean-mode-floating-btn:hover {
+      background: var(--surface);
+      color: var(--primary);
+      border-color: var(--primary);
+    }
+
+    body.clean-mode #clean-mode-floating-btn {
+      display: block;
+      opacity: 0.35;
+    }
+
+    body.clean-mode #clean-mode-floating-btn:hover {
+      opacity: 1;
     }
 
     /* MAIN CONTAINER */
@@ -410,7 +461,7 @@ object WebClientHtml {
       border-radius: 16px;
       padding: 24px;
       width: 90%;
-      max-width: 520px;
+      max-width: 540px;
       z-index: 80;
       display: none;
       box-shadow: 0 16px 48px rgba(0,0,0,0.8);
@@ -478,6 +529,11 @@ object WebClientHtml {
     </div>
 
     <div class="header-actions">
+      <!-- Clean Mode Toggle Button -->
+      <button id="btn-toggle-clean" class="btn-icon" title="Hide All UI Menus & Clutter for Clean Gaming (Hotkeys: ` or F10)">
+        <span>👁️</span> Hide UI
+      </button>
+
       <!-- Scaling Mode Dropdown for Maximum Laptop Screen Real Estate -->
       <select id="scaling-select" class="select-scale" title="Change Screen Scaling">
         <option value="scale-fill">Fill Screen (Max Real Estate)</option>
@@ -491,7 +547,7 @@ object WebClientHtml {
         <span>🖥️</span> Auto-Match (<span id="laptop-res-label">...</span>)
       </button>
 
-      <button id="btn-launcher" class="btn-icon" title="Open Game Launcher">
+      <button id="btn-launcher" class="btn-icon" title="Open Game Launcher (Hotkey: F2)">
         <span>🎮</span> Games
       </button>
 
@@ -532,10 +588,16 @@ object WebClientHtml {
 
       <!-- Quick Floating Control Dock -->
       <div class="quick-dock" id="quick-dock">
+        <button id="dock-btn-clean" class="btn-icon">👁️ Clean Screen</button>
         <button id="dock-btn-launcher" class="btn-icon">🎮 Switch Game</button>
         <button id="dock-btn-audio" class="btn-icon">🔊 Audio On</button>
         <button id="dock-btn-lock" class="btn-icon">🖱️ Lock Mouse</button>
       </div>
+
+      <!-- Floating Button in Clean Mode to Restore UI -->
+      <button id="clean-mode-floating-btn" title="Show UI Controls (Hotkey: ` or F10)">
+        👁️ Show Controls (<span class="key-badge" style="font-size:0.7rem;">`</span>)
+      </button>
     </div>
 
     <!-- GAME LAUNCHER OVERLAY (Sunshine Style) -->
@@ -565,16 +627,28 @@ object WebClientHtml {
       <button id="btn-close-modal" style="background:none; border:none; color:var(--text-muted); font-size: 1.2rem; cursor:pointer;">✕</button>
     </div>
     <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
-      Keys and mouse clicks are captured with ultra-low latency and relayed straight to your phone and running emulator.
+      Full desktop typing, mouse gestures, and controller bindings are sent in real time:
     </p>
     <table class="key-table">
+      <tr>
+        <td><span class="key-badge">` (Backtick)</span> or <span class="key-badge">F10</span></td>
+        <td><strong>Toggle Clean Screen:</strong> Hides all menus and options for distraction-free gaming</td>
+      </tr>
+      <tr>
+        <td><span class="key-badge">Left Mouse Click & Drag</span></td>
+        <td>Direct On-Screen Touch / Tap & Drag anywhere on phone display</td>
+      </tr>
+      <tr>
+        <td><span class="key-badge">Entire Keyboard (A-Z, 0-9, etc.)</span></td>
+        <td>Types text into active fields / KDE Connect style remote keyboard</td>
+      </tr>
       <tr>
         <td><span class="key-badge">W / A / S / D</span> or <span class="key-badge">Arrows</span></td>
         <td>D-Pad / Analog Direction Movement</td>
       </tr>
       <tr>
         <td><span class="key-badge">J / K / U / I</span></td>
-        <td>PSP / Gamepad Action Buttons (Cross, Circle, Square, Triangle)</td>
+        <td>Action Buttons (Cross, Circle, Square, Triangle / A, B, X, Y)</td>
       </tr>
       <tr>
         <td><span class="key-badge">Q / E</span></td>
@@ -585,16 +659,16 @@ object WebClientHtml {
         <td>Start / Select / Jump</td>
       </tr>
       <tr>
-        <td><span class="key-badge">Left Mouse Click</span></td>
-        <td>Direct On-Screen Touch / Tap</td>
+        <td><span class="key-badge">Escape</span></td>
+        <td>Android Back Button / In-Game Pause Menu</td>
       </tr>
       <tr>
-        <td><span class="key-badge">Escape</span></td>
-        <td>Toggle Game Launcher / Back to Menu</td>
+        <td><span class="key-badge">F2</span></td>
+        <td>Open / Close Game Launcher Library</td>
       </tr>
     </table>
     <div style="background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.2); border-radius: 8px; padding: 10px; font-size: 0.8rem; margin-bottom: 16px;">
-      💡 <strong>Pro-Tip:</strong> Use the scaling dropdown above to pick <strong>16:10 Laptop Match</strong> or <strong>Fill Screen</strong> to maximize your screen area and eliminate letterboxing!
+      💡 <strong>Pro-Tip:</strong> Press <span class="key-badge">`</span> (Backtick) at any time to hide all buttons, headers, and HUDs while gaming!
     </div>
     <div style="text-align: right;">
       <button id="btn-modal-ok" class="btn-icon" style="background: var(--primary); color: #000; font-weight: 700;">Got It!</button>
@@ -625,6 +699,26 @@ object WebClientHtml {
     let currentBitrateMbps = 0;
     let pingStartTime = 0;
     let currentRtt = 0;
+
+    // --- IMMERSIVE CLEAN MODE (Hide all clutter) ---
+    const btnToggleClean = document.getElementById('btn-toggle-clean');
+    const dockBtnClean = document.getElementById('dock-btn-clean');
+    const cleanModeBtn = document.getElementById('clean-mode-floating-btn');
+
+    function toggleCleanMode(forceState) {
+      const isClean = typeof forceState === 'boolean'
+        ? forceState
+        : !document.body.classList.contains('clean-mode');
+      if (isClean) {
+        document.body.classList.add('clean-mode');
+      } else {
+        document.body.classList.remove('clean-mode');
+      }
+    }
+
+    if (btnToggleClean) btnToggleClean.addEventListener('click', () => toggleCleanMode(true));
+    if (dockBtnClean) dockBtnClean.addEventListener('click', () => toggleCleanMode(true));
+    if (cleanModeBtn) cleanModeBtn.addEventListener('click', () => toggleCleanMode(false));
 
     // --- SCALING MODE HANDLING (Maximize Laptop Screen Real Estate) ---
     const scalingSelect = document.getElementById('scaling-select');
@@ -795,8 +889,6 @@ object WebClientHtml {
     });
 
     // --- DUAL-ENGINE VIDEO DECODER PIPELINE ---
-    // Engine A: WebCodecs (Hardware <5ms for Secure Contexts/localhost)
-    // Engine B: MediaSource MSE with JMuxer (Hardware fMP4 for plain HTTP on LAN)
     let hasReceivedKeyframe = false;
     let lastKeyframeRequestTime = 0;
     let currentCodecStr = 'avc1.420029';
@@ -887,7 +979,6 @@ object WebClientHtml {
         return decoder;
       } catch (e) {
         console.error('Failed to configure VideoDecoder with ' + targetCodec + ':', e);
-        // Fallback to MSE
         useWebCodecs = false;
         canvas.style.display = 'none';
         videoElement.style.display = 'block';
@@ -898,7 +989,6 @@ object WebClientHtml {
 
     function initJMuxer() {
       if (typeof JMuxer === 'undefined') {
-        console.log('Waiting for JMuxer library to load...');
         setTimeout(initJMuxer, 150);
         return;
       }
@@ -1058,7 +1148,6 @@ object WebClientHtml {
             hasReceivedKeyframe = true;
           }
 
-          // Drop delta frames until the first keyframe has been received and decoder is primed
           if (!hasReceivedKeyframe) {
             const now = performance.now();
             if (now - lastKeyframeRequestTime > 800) {
@@ -1158,7 +1247,7 @@ object WebClientHtml {
     // Mouse Input
     let isMouseDown = false;
     streamContainer.addEventListener('mousedown', (e) => {
-      if (e.target.closest('#quick-dock') || e.target.closest('.stream-hud')) return;
+      if (e.target.closest('#quick-dock') || e.target.closest('.stream-hud') || e.target.id === 'clean-mode-floating-btn') return;
       initAudio();
       isMouseDown = true;
       const { x, y } = getNormalizedCoords(e);
@@ -1188,7 +1277,7 @@ object WebClientHtml {
     });
 
     streamContainer.addEventListener('mousemove', (e) => {
-      if (e.target.closest('#quick-dock') || e.target.closest('.stream-hud')) return;
+      if (e.target.closest('#quick-dock') || e.target.closest('.stream-hud') || e.target.id === 'clean-mode-floating-btn') return;
       const { x, y } = getNormalizedCoords(e);
       if (isMouseDown) {
         sendInput({
@@ -1222,16 +1311,38 @@ object WebClientHtml {
       el.requestPointerLock();
     });
 
-    // Laptop Keyboard Capture
+    // Laptop Keyboard Capture (Full Keyboard KDE Connect style + Game Controls)
     window.addEventListener('keydown', (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
 
-      // Handle Escape to toggle Launcher
-      if (e.code === 'Escape' && !controlsModal.classList.contains('active')) {
+      // Toggle Clean Mode with Backquote (`) or F10
+      if (e.code === 'Backquote' || e.code === 'F10') {
+        e.preventDefault();
+        toggleCleanMode();
+        return;
+      }
+
+      // F2 toggles Launcher
+      if (e.code === 'F2') {
+        e.preventDefault();
         toggleLauncher(launcherPanel.classList.contains('hidden'));
         return;
       }
 
+      // If controls modal is active, Escape closes modal
+      if (e.code === 'Escape' && controlsModal.classList.contains('active')) {
+        controlsModal.classList.remove('active');
+        modalBackdrop.classList.remove('active');
+        return;
+      }
+
+      // If game launcher modal is active, Escape closes launcher
+      if (e.code === 'Escape' && !launcherPanel.classList.contains('hidden')) {
+        toggleLauncher(false);
+        return;
+      }
+
+      // Send the keystroke to the phone (processed by KDE Connect Keyboard IME and Accessibility)
       sendInput({
         type: 'keyboard',
         code: e.code,

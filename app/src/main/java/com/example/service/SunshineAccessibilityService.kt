@@ -1,18 +1,22 @@
 package com.example.service
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import java.util.concurrent.atomic.AtomicBoolean
 
 class SunshineAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val TAG = "SunshineAccessibility"
+        @Volatile
         var instance: SunshineAccessibilityService? = null
             private set
 
@@ -20,7 +24,6 @@ class SunshineAccessibilityService : AccessibilityService() {
             get() = instance != null
     }
 
-    private val isInjecting = AtomicBoolean(false)
     private val mainHandler = Handler(Looper.getMainLooper())
     private var lastMouseX = -1f
     private var lastMouseY = -1f
@@ -29,11 +32,22 @@ class SunshineAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
-        Log.i(TAG, "SunshineAccessibilityService connected. Remote touch injection is ACTIVE!")
+        try {
+            val info = serviceInfo ?: AccessibilityServiceInfo()
+            info.eventTypes = AccessibilityEvent.TYPES_ALL_MASK
+            info.feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
+            info.flags = AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS or
+                    AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
+            info.notificationTimeout = 50
+            serviceInfo = info
+            Log.i(TAG, "SunshineAccessibilityService connected successfully. Remote touch injection is ACTIVE!")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in onServiceConnected: ${e.message}", e)
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // No-op - we only use this service for gesture injection
+        // Minimal handling to avoid event starvation
     }
 
     override fun onInterrupt() {
@@ -52,81 +66,122 @@ class SunshineAccessibilityService : AccessibilityService() {
      * Injects a tap gesture at normalized coordinates (0.0 - 1.0).
      */
     fun injectTap(normX: Float, normY: Float) {
-        val dm = resources.displayMetrics
-        val pxX = (normX.coerceIn(0f, 1f) * dm.widthPixels)
-        val pxY = (normY.coerceIn(0f, 1f) * dm.heightPixels)
+        try {
+            val dm = resources.displayMetrics
+            val pxX = (normX.coerceIn(0f, 1f) * dm.widthPixels)
+            val pxY = (normY.coerceIn(0f, 1f) * dm.heightPixels)
 
-        val path = Path().apply {
-            moveTo(pxX, pxY)
-            lineTo(pxX, pxY)
+            val path = Path().apply {
+                moveTo(pxX, pxY)
+                // Offset by 1 pixel so the Path has a distinct end point for strict OEM parsers
+                lineTo(pxX + 1f, pxY + 1f)
+            }
+
+            val stroke = GestureDescription.StrokeDescription(path, 0, 45)
+            val gesture = GestureDescription.Builder().addStroke(stroke).build()
+
+            dispatchGesture(gesture, null, mainHandler)
+            Log.d(TAG, "Tap injected at (${pxX.toInt()}, ${pxY.toInt()})")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to inject tap: ${e.message}")
         }
-
-        val stroke = GestureDescription.StrokeDescription(path, 0, 50)
-        val gesture = GestureDescription.Builder().addStroke(stroke).build()
-
-        dispatchGesture(gesture, object : GestureResultCallback() {
-            override fun onCompleted(gestureDescription: GestureDescription?) {
-                Log.d(TAG, "Tap injected successfully at (${pxX.toInt()}, ${pxY.toInt()})")
-            }
-
-            override fun onCancelled(gestureDescription: GestureDescription?) {
-                Log.w(TAG, "Tap gesture cancelled at (${pxX.toInt()}, ${pxY.toInt()})")
-            }
-        }, mainHandler)
     }
 
     /**
      * Handles continuous mouse clicks, moves, and releases.
      */
     fun injectMouse(normX: Float, normY: Float, action: String) {
-        val dm = resources.displayMetrics
-        val pxX = (normX.coerceIn(0f, 1f) * dm.widthPixels)
-        val pxY = (normY.coerceIn(0f, 1f) * dm.heightPixels)
+        try {
+            val dm = resources.displayMetrics
+            val pxX = (normX.coerceIn(0f, 1f) * dm.widthPixels)
+            val pxY = (normY.coerceIn(0f, 1f) * dm.heightPixels)
 
-        when (action) {
-            "down" -> {
-                isMouseDown = true
-                lastMouseX = pxX
-                lastMouseY = pxY
-                // Send immediate tap on mouse down for instant responsiveness
-                injectTap(normX, normY)
-            }
-            "move" -> {
-                if (isMouseDown && lastMouseX >= 0 && lastMouseY >= 0) {
-                    val path = Path().apply {
-                        moveTo(lastMouseX, lastMouseY)
-                        lineTo(pxX, pxY)
-                    }
-                    val stroke = GestureDescription.StrokeDescription(path, 0, 60)
-                    val gesture = GestureDescription.Builder().addStroke(stroke).build()
-                    dispatchGesture(gesture, null, mainHandler)
+            when (action) {
+                "down" -> {
+                    isMouseDown = true
                     lastMouseX = pxX
                     lastMouseY = pxY
+                    injectTap(normX, normY)
+                }
+                "move" -> {
+                    if (isMouseDown && lastMouseX >= 0 && lastMouseY >= 0) {
+                        val dx = Math.abs(pxX - lastMouseX)
+                        val dy = Math.abs(pxY - lastMouseY)
+                        // Only dispatch gesture if there's real movement (> 4px)
+                        if (dx > 4f || dy > 4f) {
+                            val path = Path().apply {
+                                moveTo(lastMouseX, lastMouseY)
+                                lineTo(pxX, pxY)
+                            }
+                            val stroke = GestureDescription.StrokeDescription(path, 0, 60)
+                            val gesture = GestureDescription.Builder().addStroke(stroke).build()
+                            dispatchGesture(gesture, null, mainHandler)
+                            lastMouseX = pxX
+                            lastMouseY = pxY
+                        }
+                    }
+                }
+                "up" -> {
+                    isMouseDown = false
+                    lastMouseX = -1f
+                    lastMouseY = -1f
                 }
             }
-            "up" -> {
-                isMouseDown = false
-                lastMouseX = -1f
-                lastMouseY = -1f
-            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in injectMouse: ${e.message}")
         }
     }
 
     /**
-     * Injects game button taps or system actions based on laptop keyboard key.
+     * Full Keyboard Input Injection (KDE Connect style):
+     * 1. If an editable text field is focused on screen, injects text directly via AccessibilityNodeInfo (ACTION_SET_TEXT).
+     * 2. If in a game or emulator, maps keys to touch buttons or virtual game controller.
+     * 3. Handles system navigation (Back, Home).
      */
     fun injectKey(code: String, key: String, isDown: Boolean) {
         if (!isDown) return
 
+        // 1. Global Navigation Keys
+        if (code == "Escape") {
+            performGlobalAction(GLOBAL_ACTION_BACK)
+            return
+        }
+        if (code == "Home") {
+            performGlobalAction(GLOBAL_ACTION_HOME)
+            return
+        }
+
+        // 2. Check if a text input field is focused (for full laptop typing on phone)
+        try {
+            val root = rootInActiveWindow
+            val focusedNode = root?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            if (focusedNode != null && focusedNode.isEditable) {
+                val currentText = focusedNode.text?.toString() ?: ""
+                if (code == "Backspace") {
+                    if (currentText.isNotEmpty()) {
+                        val newText = currentText.substring(0, currentText.length - 1)
+                        val bundle = Bundle().apply {
+                            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, newText)
+                        }
+                        focusedNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, bundle)
+                    }
+                    return
+                } else if (key.length == 1 && !key.first().isISOControl()) {
+                    val newText = currentText + key
+                    val bundle = Bundle().apply {
+                        putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, newText)
+                    }
+                    focusedNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, bundle)
+                    return
+                }
+            }
+        } catch (e: Exception) {
+            Log.d(TAG, "Text field focus check skipped: ${e.message}")
+        }
+
+        // 3. Game & Emulator Control Mapping (Landscape coordinates)
         when (code) {
-            "Escape", "Backspace" -> {
-                performGlobalAction(GLOBAL_ACTION_BACK)
-            }
-            "KeyH", "Home" -> {
-                performGlobalAction(GLOBAL_ACTION_HOME)
-            }
-            // Emulators / Games standard on-screen button mappings (landscape coordinates)
-            // D-Pad Left/Up/Right/Down
+            // D-Pad / Movement
             "KeyW", "ArrowUp" -> injectTap(0.18f, 0.65f)
             "KeyS", "ArrowDown" -> injectTap(0.18f, 0.85f)
             "KeyA", "ArrowLeft" -> injectTap(0.10f, 0.75f)

@@ -240,7 +240,10 @@ class ScreenCastService : Service() {
             is RemoteInputEvent.Keyboard -> {
                 val stateText = if (event.isDown) "▼ ${event.code}" else "▲ ${event.code}"
                 OverlayInputService.updateKeyDisplay(stateText)
-                SunshineAccessibilityService.instance?.injectKey(event.code, event.key, event.isDown)
+                val handledByIme = SunshineKeyboardService.sendRemoteKey(event.code, event.key, event.isDown)
+                if (!handledByIme) {
+                    SunshineAccessibilityService.instance?.injectKey(event.code, event.key, event.isDown)
+                }
             }
             is RemoteInputEvent.Mouse -> {
                 OverlayInputService.showTouchRipple(event.x, event.y)

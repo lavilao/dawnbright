@@ -68,6 +68,7 @@
         <!-- Accessibility Service for dispatching laptop mouse clicks, touches, and keys -->
         <service
             android:name=".service.SunshineAccessibilityService"
+            android:label="Sunshine Cast Controller"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
             android:exported="true">
             <intent-filter>
@@ -76,6 +77,20 @@
             <meta-data
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <!-- Remote Keyboard Service (KDE Connect style IME for typing full laptop keys on phone) -->
+        <service
+            android:name=".service.SunshineKeyboardService"
+            android:label="Sunshine Remote Keyboard"
+            android:permission="android.permission.BIND_INPUT_METHOD"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/method" />
         </service>
 
     </application>
