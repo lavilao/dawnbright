@@ -30,9 +30,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 /**
  * HTTP + WebSocket server.
  *
- * Security: WebSocket clients (video/audio/input) and the /api endpoints require
- * a PIN (see [getPin]) so random people on the LAN cannot watch the screen or
- * inject touches. The PIN is displayed on the phone dashboard.
+ * Trusted-LAN design: clients connect and are immediately authenticated (the
+ * app is meant for a single user on a private Wi-Fi network).
  *
  * Robustness: every client has its own bounded outbound queue + writer thread,
  * so one slow/laggy client can never block the encoder broadcast thread. When a
@@ -45,7 +44,6 @@ class HttpWebServer(
     private val getStatusProvider: () -> ServerStatus,
     private val onInputReceived: (RemoteInputEvent) -> Unit,
     private val onKeyFrameRequested: () -> Unit,
-    private val getPin: () -> String,
     private val context: Context? = null
 ) {
     companion object {
@@ -220,63 +218,51 @@ class HttpWebServer(
                     }
                 }
                 path.startsWith("/api/apps") -> {
-                    if (!pinOk(path)) {
-                        sendHttpResponse(outputStream, 403, "text/plain", "Forbidden".toByteArray())
-                    } else {
-                        val apps = getAppsProvider()
-                        val jsonArray = JSONArray()
-                        apps.forEach { app ->
-                            jsonArray.put(JSONObject().apply {
-                                put("packageName", app.packageName)
-                                put("appName", app.appName)
-                                put("iconBase64", app.iconBase64)
-                                put("isEmulator", app.isEmulator)
-                                put("category", app.category)
-                            })
-                        }
-                        sendHttpResponse(outputStream, 200, "application/json", jsonArray.toString().toByteArray())
+                    val apps = getAppsProvider()
+                    val jsonArray = JSONArray()
+                    apps.forEach { app ->
+                        jsonArray.put(JSONObject().apply {
+                            put("packageName", app.packageName)
+                            put("appName", app.appName)
+                            put("iconBase64", app.iconBase64)
+                            put("isEmulator", app.isEmulator)
+                            put("category", app.category)
+                        })
                     }
+                    sendHttpResponse(outputStream, 200, "application/json", jsonArray.toString().toByteArray())
                 }
                 path.startsWith("/api/status") -> {
-                    if (!pinOk(path)) {
-                        sendHttpResponse(outputStream, 403, "text/plain", "Forbidden".toByteArray())
-                    } else {
-                        val status = getStatusProvider()
-                        val json = JSONObject().apply {
-                            put("isRunning", status.isRunning)
-                            put("isStreaming", status.isStreaming)
-                            put("clientCount", getClientCount())
-                            put("fps", status.currentFps)
-                            put("bitrateMbps", status.currentBitrateMbps)
-                            put("activeApp", status.activeAppName)
-                        }
-                        sendHttpResponse(outputStream, 200, "application/json", json.toString().toByteArray())
+                    val status = getStatusProvider()
+                    val json = JSONObject().apply {
+                        put("isRunning", status.isRunning)
+                        put("isStreaming", status.isStreaming)
+                        put("clientCount", getClientCount())
+                        put("fps", status.currentFps)
+                        put("bitrateMbps", status.currentBitrateMbps)
+                        put("activeApp", status.activeAppName)
                     }
+                    sendHttpResponse(outputStream, 200, "application/json", json.toString().toByteArray())
                 }
                 path.startsWith("/api/launch") -> {
-                    if (!pinOk(path)) {
-                        sendHttpResponse(outputStream, 403, "text/plain", "Forbidden".toByteArray())
+                    var pkgToLaunch = ""
+                    val contentLength = headers["content-length"]?.toIntOrNull() ?: 0
+                    if (contentLength > 0) {
+                        val bodyBytes = ByteArray(contentLength)
+                        var read = 0
+                        while (read < contentLength) {
+                            val r = inputStream.read(bodyBytes, read, contentLength - read)
+                            if (r == -1) break
+                            read += r
+                        }
+                        val bodyStr = String(bodyBytes, Charsets.UTF_8)
+                        val json = try { JSONObject(bodyStr) } catch (e: Exception) { null }
+                        pkgToLaunch = json?.optString("packageName") ?: ""
+                    }
+                    if (pkgToLaunch.isNotEmpty()) {
+                        onInputReceived(RemoteInputEvent.LaunchApp(pkgToLaunch))
+                        sendHttpResponse(outputStream, 200, "application/json", """{"success":true}""".toByteArray())
                     } else {
-                        var pkgToLaunch = ""
-                        val contentLength = headers["content-length"]?.toIntOrNull() ?: 0
-                        if (contentLength > 0) {
-                            val bodyBytes = ByteArray(contentLength)
-                            var read = 0
-                            while (read < contentLength) {
-                                val r = inputStream.read(bodyBytes, read, contentLength - read)
-                                if (r == -1) break
-                                read += r
-                            }
-                            val bodyStr = String(bodyBytes, Charsets.UTF_8)
-                            val json = try { JSONObject(bodyStr) } catch (e: Exception) { null }
-                            pkgToLaunch = json?.optString("packageName") ?: ""
-                        }
-                        if (pkgToLaunch.isNotEmpty()) {
-                            onInputReceived(RemoteInputEvent.LaunchApp(pkgToLaunch))
-                            sendHttpResponse(outputStream, 200, "application/json", """{"success":true}""".toByteArray())
-                        } else {
-                            sendHttpResponse(outputStream, 400, "application/json", """{"error":"Missing packageName"}""".toByteArray())
-                        }
+                        sendHttpResponse(outputStream, 400, "application/json", """{"error":"Missing packageName"}""".toByteArray())
                     }
                 }
                 else -> {
@@ -289,15 +275,6 @@ class HttpWebServer(
             Log.d(TAG, "Client handle ended: " + e.message)
             try { socket.close() } catch (_: Exception) {}
         }
-    }
-
-    /** Requires ?pin=<pin> on /api endpoints when a PIN is configured. */
-    private fun pinOk(path: String): Boolean {
-        val pin = getPin()
-        if (pin.isEmpty()) return true
-        val query = path.substringAfter('?', "")
-        if (query.isEmpty()) return false
-        return query.split("&").any { it == "pin=" + pin }
     }
 
     private fun sendHttpResponse(
@@ -375,6 +352,11 @@ class HttpWebServer(
         activeWsClients.add(wsClient)
         Log.i(TAG, "WebSocket client connected. Total clients: " + activeWsClients.size)
 
+        // Trusted-LAN mode: clients are authenticated as soon as the handshake
+        // completes, which immediately arms video + input for them.
+        wsClient.authenticate()
+        wsClient.onAuthenticated?.invoke()
+
         wsClient.listen {
             activeWsClients.remove(wsClient)
             Log.i(TAG, "WebSocket client disconnected. Total clients: " + activeWsClients.size)
@@ -385,25 +367,6 @@ class HttpWebServer(
         try {
             val json = JSONObject(text)
             val type = json.optString("type")
-
-            // Authentication handshake (allowed while unauthenticated)
-            if (type == "auth") {
-                if (client.isAuthenticated) return
-                val pin = getPin()
-                if (pin.isEmpty() || json.optString("pin") == pin) {
-                    client.authenticate()
-                    client.sendText("""{"type":"auth_ok"}""")
-                    client.onAuthenticated?.invoke()
-                } else {
-                    Log.w(TAG, "WebSocket client failed PIN auth")
-                    client.sendText("""{"type":"auth_failed"}""")
-                    client.close()
-                }
-                return
-            }
-
-            // Everything else requires a successful auth
-            if (!client.isAuthenticated) return
 
             when (type) {
                 "keyboard" -> {

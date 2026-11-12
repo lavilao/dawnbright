@@ -21,17 +21,18 @@ object WebClientHtml {
   </script>
   <style>
     :root {
-      --bg: #090d16;
-      --surface: #121826;
-      --surface-border: #1f2a40;
-      --primary: #00e5ff;
-      --primary-glow: rgba(0, 229, 255, 0.35);
-      --accent: #7c4dff;
-      --success: #00e676;
-      --warning: #ffab00;
-      --text: #f0f4f8;
-      --text-muted: #8a99ad;
-      --danger: #ff5252;
+      --bg: #0b0c0f;
+      --surface: #15171c;
+      --surface-2: #1d2026;
+      --border: #2a2e36;
+      --accent: #ffb454;
+      --accent-dim: rgba(255, 180, 84, 0.14);
+      --success: #3fb950;
+      --warning: #d29922;
+      --danger: #f85149;
+      --text: #f4f5f7;
+      --text-muted: #a0a5ad;
+      --text-faint: #6e7480;
     }
 
     * {
@@ -55,14 +56,14 @@ object WebClientHtml {
 
     /* TOP HEADER */
     header {
-      height: 52px;
-      background: rgba(18, 24, 38, 0.95);
+      height: 46px;
+      background: rgba(11, 12, 15, 0.92);
       backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--surface-border);
+      border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 16px;
+      padding: 0 14px;
       z-index: 100;
       flex-shrink: 0;
       transition: transform 0.25s ease, opacity 0.25s ease;
@@ -71,121 +72,133 @@ object WebClientHtml {
     .brand {
       display: flex;
       align-items: center;
-      gap: 10px;
-      font-weight: 700;
-      font-size: 1.05rem;
-      letter-spacing: 0.5px;
+      gap: 9px;
+      font-weight: 600;
+      font-size: 0.9rem;
       color: var(--text);
     }
 
-    .brand-badge {
-      background: linear-gradient(135deg, var(--primary), var(--accent));
-      color: #000;
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 0.72rem;
-      font-weight: 800;
-      text-transform: uppercase;
+    .brand-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
     }
 
     .header-center {
       display: flex;
       align-items: center;
-      gap: 16px;
-      font-size: 0.82rem;
+      gap: 14px;
+      font-size: 0.8rem;
       color: var(--text-muted);
     }
 
-    .stat-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      background: rgba(255, 255, 255, 0.05);
-      padding: 4px 10px;
-      border-radius: 20px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
+    #active-app-label {
+      color: var(--text-faint);
     }
 
     .status-dot {
-      width: 8px;
-      height: 8px;
+      width: 7px;
+      height: 7px;
       border-radius: 50%;
-      background: var(--success);
-      box-shadow: 0 0 8px var(--success);
-      animation: pulse 2s infinite;
-    }
-
-    @keyframes pulse {
-      0% { opacity: 0.6; }
-      50% { opacity: 1; }
-      100% { opacity: 0.6; }
+      background: var(--text-faint);
     }
 
     .header-actions {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
     }
 
     button.btn-icon {
-      background: var(--surface);
-      border: 1px solid var(--surface-border);
-      color: var(--text);
-      padding: 6px 12px;
-      border-radius: 6px;
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      height: 30px;
+      padding: 0 10px;
+      border-radius: 8px;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      font-size: 0.82rem;
+      font-size: 0.78rem;
       font-weight: 500;
-      transition: all 0.2s;
+      font-family: inherit;
+      transition: color 0.15s, background 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+
+    button.btn-icon svg {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
     }
 
     button.btn-icon:hover {
-      background: rgba(0, 229, 255, 0.1);
-      border-color: var(--primary);
-      color: var(--primary);
+      background: rgba(255, 255, 255, 0.06);
+      border-color: var(--border);
+      color: var(--text);
+    }
+
+    button.btn-icon.active {
+      color: var(--accent);
     }
 
     select.select-scale {
-      background: var(--surface);
-      border: 1px solid var(--surface-border);
-      color: var(--text);
-      padding: 6px 10px;
-      border-radius: 6px;
-      font-size: 0.82rem;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      height: 30px;
+      padding: 0 8px;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      font-family: inherit;
       cursor: pointer;
       outline: none;
     }
 
-    select.select-scale:focus {
-      border-color: var(--primary);
+    select.select-scale:hover {
+      color: var(--text);
     }
 
-    /* INSECURE HTTP TIP BANNER */
+    select.select-scale:focus {
+      border-color: #3a3f49;
+      color: var(--text);
+    }
+
+    /* INFO / WARNING BANNERS */
     #insecure-http-banner {
       display: none;
-      background: rgba(0, 229, 255, 0.12);
-      border-bottom: 1px solid var(--primary);
-      padding: 6px 16px;
-      font-size: 0.78rem;
-      color: var(--text);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 6px 14px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
       justify-content: space-between;
       align-items: center;
+      gap: 12px;
       z-index: 99;
+    }
+
+    #insecure-http-banner code {
+      background: rgba(255, 255, 255, 0.07);
+      padding: 1px 6px;
+      border-radius: 4px;
+      user-select: all;
+      color: var(--text);
     }
 
     /* INPUT UNAVAILABLE WARNING BANNER */
     #input-warn-banner {
       display: none;
-      background: rgba(255, 82, 82, 0.15);
-      border-bottom: 1px solid var(--danger);
-      color: var(--text);
-      padding: 6px 16px;
-      font-size: 0.8rem;
+      background: rgba(248, 81, 73, 0.08);
+      border-bottom: 1px solid rgba(248, 81, 73, 0.35);
+      color: var(--text-muted);
+      padding: 6px 14px;
+      font-size: 0.78rem;
       justify-content: space-between;
       align-items: center;
+      gap: 12px;
       z-index: 98;
     }
 
@@ -193,87 +206,20 @@ object WebClientHtml {
       display: flex;
     }
 
-    #input-warn-banner button {
+    #input-warn-banner button,
+    #insecure-http-banner button {
       background: none;
       border: none;
-      color: var(--text-muted);
+      color: var(--text-faint);
       cursor: pointer;
       font-size: 1rem;
       padding: 0 4px;
+      flex-shrink: 0;
     }
 
-    /* PIN AUTH MODAL */
-    #pin-backdrop {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.7);
-      z-index: 1200;
-      display: none;
-    }
-
-    #pin-backdrop.active {
-      display: block;
-    }
-
-    #pin-modal {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: var(--surface);
-      border: 1px solid var(--surface-border);
-      border-radius: 16px;
-      padding: 24px;
-      width: 320px;
-      z-index: 1201;
-      display: none;
-      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8);
-    }
-
-    #pin-modal.active {
-      display: block;
-    }
-
-    #pin-modal h3 {
-      margin-bottom: 8px;
-    }
-
-    #pin-modal p {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      margin-bottom: 12px;
-    }
-
-    #pin-modal input {
-      width: 100%;
-      background: var(--bg);
+    #input-warn-banner button:hover,
+    #insecure-http-banner button:hover {
       color: var(--text);
-      border: 1px solid var(--surface-border);
-      border-radius: 8px;
-      padding: 10px 12px;
-      font-size: 1.2rem;
-      letter-spacing: 4px;
-      text-align: center;
-      outline: none;
-    }
-
-    #pin-modal input:focus {
-      border-color: var(--primary);
-    }
-
-    #pin-error {
-      color: var(--danger);
-      font-size: 0.75rem;
-      min-height: 18px;
-      margin: 6px 0;
-    }
-
-    #pin-submit {
-      width: 100%;
-      justify-content: center;
     }
 
     /* KEYMAP CALIBRATION PANEL */
@@ -284,8 +230,8 @@ object WebClientHtml {
       width: 300px;
       max-width: 85%;
       height: 100%;
-      background: rgba(18, 24, 38, 0.97);
-      border-left: 1px solid var(--surface-border);
+      background: rgba(11, 12, 15, 0.97);
+      border-left: 1px solid var(--border);
       z-index: 60;
       padding: 20px;
       display: none;
@@ -341,12 +287,18 @@ object WebClientHtml {
       z-index: 65;
       display: none;
       text-align: center;
-      background: rgba(9, 13, 22, 0.9);
-      border: 1px solid var(--primary);
-      padding: 14px 22px;
+      background: rgba(11, 12, 15, 0.92);
+      border: 1px solid var(--border);
+      padding: 16px 24px;
       border-radius: 12px;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
       pointer-events: none;
+    }
+
+    #calibration-hint strong {
+      color: var(--text);
+      font-size: 0.95rem;
     }
 
     #calibration-hint.active {
@@ -367,9 +319,9 @@ object WebClientHtml {
     .map-dot {
       position: absolute;
       transform: translate(-50%, -50%);
-      background: rgba(0, 229, 255, 0.25);
-      border: 1px solid var(--primary);
-      color: var(--primary);
+      background: var(--accent-dim);
+      border: 1px solid var(--accent);
+      color: var(--accent);
       font-size: 0.62rem;
       padding: 2px 6px;
       border-radius: 10px;
@@ -397,24 +349,24 @@ object WebClientHtml {
       position: absolute;
       top: 12px;
       right: 16px;
-      background: rgba(18, 24, 38, 0.75);
+      background: rgba(21, 23, 28, 0.75);
       backdrop-filter: blur(10px);
-      border: 1px solid var(--surface-border);
+      border: 1px solid var(--border);
       color: var(--text-muted);
-      border-radius: 20px;
+      border-radius: 999px;
       padding: 6px 14px;
-      font-size: 0.78rem;
+      font-size: 0.75rem;
+      font-family: inherit;
       cursor: pointer;
       display: none;
       z-index: 1001;
       transition: all 0.2s;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
     }
 
     #clean-mode-floating-btn:hover {
       background: var(--surface);
-      color: var(--primary);
-      border-color: var(--primary);
+      color: var(--text);
+      border-color: #3a3f49;
     }
 
     body.clean-mode #clean-mode-floating-btn {
@@ -508,31 +460,30 @@ object WebClientHtml {
     /* VIRTUAL POINTER & INPUT OVERLAY */
     #touch-cursor {
       position: absolute;
-      width: 24px;
-      height: 24px;
-      border: 2px solid var(--primary);
+      width: 22px;
+      height: 22px;
+      border: 2px solid var(--accent);
       border-radius: 50%;
-      background: rgba(0, 229, 255, 0.25);
+      background: var(--accent-dim);
       pointer-events: none;
       transform: translate(-50%, -50%);
       display: none;
-      box-shadow: 0 0 10px var(--primary);
       z-index: 10;
     }
 
     /* PERFORMANCE HUD */
     .stream-hud {
       position: absolute;
-      top: 14px;
-      left: 14px;
-      background: rgba(9, 13, 22, 0.85);
+      top: 10px;
+      left: 10px;
+      background: rgba(11, 12, 15, 0.72);
       backdrop-filter: blur(8px);
-      border: 1px solid var(--surface-border);
+      border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 6px 12px;
-      font-size: 0.78rem;
-      font-family: monospace;
-      color: var(--text-muted);
+      padding: 4px 10px;
+      font-size: 0.7rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: var(--text-faint);
       display: flex;
       gap: 12px;
       z-index: 20;
@@ -540,34 +491,40 @@ object WebClientHtml {
     }
 
     .stream-hud strong {
-      color: var(--primary);
+      color: var(--text-muted);
+      font-weight: 600;
     }
 
     /* QUICK DOCK */
     .quick-dock {
       position: absolute;
-      bottom: 20px;
+      bottom: 14px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(18, 24, 38, 0.9);
+      background: rgba(21, 23, 28, 0.88);
       backdrop-filter: blur(12px);
-      border: 1px solid var(--surface-border);
-      padding: 6px 12px;
-      border-radius: 30px;
+      border: 1px solid var(--border);
+      padding: 4px;
+      border-radius: 999px;
       display: flex;
-      gap: 8px;
+      gap: 2px;
       z-index: 30;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
     }
 
-    /* GAME LAUNCHER OVERLAY (Sunshine Style) */
+    .quick-dock .btn-icon {
+      height: 28px;
+      padding: 0 12px;
+      border-radius: 999px;
+    }
+
+    /* GAME LAUNCHER OVERLAY */
     #launcher-panel {
       position: absolute;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(9, 13, 22, 0.95);
+      background: rgba(11, 12, 15, 0.96);
       backdrop-filter: blur(16px);
       z-index: 50;
       display: flex;
@@ -587,46 +544,50 @@ object WebClientHtml {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 24px;
+      margin-bottom: 20px;
+    }
+
+    .launcher-title-row h2 {
+      font-size: 1.05rem;
+      font-weight: 600;
     }
 
     .games-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-      gap: 20px;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 14px;
       margin-top: 10px;
     }
 
     .game-card {
       background: var(--surface);
-      border: 1px solid var(--surface-border);
+      border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 16px;
+      padding: 14px;
       display: flex;
       flex-direction: column;
       align-items: center;
       text-align: center;
       cursor: pointer;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: border-color 0.15s, transform 0.15s;
     }
 
     .game-card:hover {
-      transform: translateY(-4px);
-      border-color: var(--primary);
-      box-shadow: 0 10px 25px rgba(0, 229, 255, 0.2);
+      transform: translateY(-2px);
+      border-color: #3a3f49;
     }
 
     .game-icon-wrapper {
-      width: 72px;
-      height: 72px;
-      border-radius: 16px;
+      width: 64px;
+      height: 64px;
+      border-radius: 14px;
       overflow: hidden;
-      margin-bottom: 12px;
-      background: rgba(255,255,255,0.05);
+      margin-bottom: 10px;
+      background: var(--surface-2);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 2.2rem;
+      font-size: 1.6rem;
     }
 
     .game-icon-wrapper img {
@@ -636,19 +597,10 @@ object WebClientHtml {
     }
 
     .game-card-title {
-      font-weight: 600;
-      font-size: 0.9rem;
+      font-weight: 500;
+      font-size: 0.85rem;
       color: var(--text);
-      margin-bottom: 4px;
-      line-height: 1.2;
-    }
-
-    .game-card-tag {
-      font-size: 0.72rem;
-      color: var(--text-muted);
-      background: rgba(255,255,255,0.05);
-      padding: 2px 8px;
-      border-radius: 10px;
+      line-height: 1.25;
     }
 
     /* CONTROLS GUIDE MODAL */
@@ -658,18 +610,23 @@ object WebClientHtml {
       left: 50%;
       transform: translate(-50%, -50%);
       background: var(--surface);
-      border: 1px solid var(--surface-border);
-      border-radius: 16px;
-      padding: 24px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px;
       width: 90%;
-      max-width: 540px;
+      max-width: 500px;
       z-index: 80;
       display: none;
-      box-shadow: 0 16px 48px rgba(0,0,0,0.8);
+      box-shadow: 0 16px 48px rgba(0,0,0,0.5);
     }
 
     #controls-modal.active {
       display: block;
+    }
+
+    #controls-modal h3 {
+      font-size: 1rem;
+      font-weight: 600;
     }
 
     .modal-backdrop {
@@ -678,7 +635,7 @@ object WebClientHtml {
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0,0,0,0.6);
+      background: rgba(0,0,0,0.55);
       z-index: 70;
       display: none;
     }
@@ -689,24 +646,59 @@ object WebClientHtml {
 
     .key-table {
       width: 100%;
-      margin: 16px 0;
+      margin: 14px 0 6px;
       border-collapse: collapse;
-      font-size: 0.85rem;
+      font-size: 0.82rem;
     }
 
     .key-table td {
-      padding: 8px;
-      border-bottom: 1px solid rgba(255,255,255,0.06);
+      padding: 7px 6px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      color: var(--text-muted);
+    }
+
+    .key-table td:last-child {
+      text-align: right;
+    }
+
+    .key-table td strong {
+      color: var(--text);
+      font-weight: 500;
     }
 
     .key-badge {
       display: inline-block;
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 4px;
-      padding: 2px 6px;
-      font-family: monospace;
-      font-size: 0.8rem;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 2px 7px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.75rem;
+      color: var(--text);
+      white-space: nowrap;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 12px;
+    }
+
+    .btn-solid {
+      background: var(--accent);
+      color: #231503;
+      border: none;
+      border-radius: 8px;
+      height: 32px;
+      padding: 0 18px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .btn-solid:hover {
+      background: #ffc270;
     }
   </style>
 </head>
@@ -714,69 +706,66 @@ object WebClientHtml {
   <!-- HEADER -->
   <header>
     <div class="brand">
-      <span>☀️ Sunshine Cast</span>
-      <span class="brand-badge">Remote Play</span>
+      <span class="brand-dot"></span>
+      <span>Sunshine Cast</span>
     </div>
 
     <div class="header-center">
-      <div class="stat-chip">
-        <span class="status-dot" id="status-indicator"></span>
-        <span id="connection-status">Connecting...</span>
-      </div>
-      <div class="stat-chip">
-        <span>Active:</span>
-        <strong id="active-app-label" style="color: var(--primary);">Desktop Mode</strong>
-      </div>
+      <span class="status-dot" id="status-indicator"></span>
+      <span id="connection-status">Connecting</span>
+      <span id="active-app-label"></span>
     </div>
 
     <div class="header-actions">
-      <!-- Clean Mode Toggle Button -->
-      <button id="btn-toggle-clean" class="btn-icon" title="Hide All UI Menus & Clutter for Clean Gaming (Hotkeys: ` or F10)">
-        <span>👁️</span> Hide UI
+      <button id="btn-toggle-clean" class="btn-icon" title="Hide all UI (` or F10)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+        <span>Hide UI</span>
       </button>
 
-      <!-- Scaling Mode Dropdown for Maximum Laptop Screen Real Estate -->
-      <select id="scaling-select" class="select-scale" title="Change Screen Scaling">
-        <option value="scale-fill">Fill Screen (Max Real Estate)</option>
-        <option value="scale-fit" selected>Fit Screen (Preserve Ratio)</option>
-        <option value="scale-16-10">16:10 Laptop Match</option>
-        <option value="scale-16-9">16:9 Wide</option>
-        <option value="scale-3-2">3:2 Productivity</option>
+      <select id="scaling-select" class="select-scale" title="Screen scaling">
+        <option value="scale-fill" title="Stretch to fill the window">Fill</option>
+        <option value="scale-fit" selected title="Preserve aspect ratio">Fit</option>
+        <option value="scale-16-10" title="Lock to 16:10">16:10</option>
+        <option value="scale-16-9" title="Lock to 16:9">16:9</option>
+        <option value="scale-3-2" title="Lock to 3:2">3:2</option>
       </select>
 
-      <button id="btn-detect-res" class="btn-icon" title="Match Stream to Laptop Display Resolution">
-        <span>🖥️</span> Auto-Match (<span id="laptop-res-label">...</span>)
+      <button id="btn-detect-res" class="btn-icon" title="Match stream resolution to this display">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        <span id="laptop-res-label">…</span>
       </button>
 
-      <button id="btn-launcher" class="btn-icon" title="Open Game Launcher (Hotkey: F2)">
-        <span>🎮</span> Games
+      <button id="btn-launcher" class="btn-icon" title="Game library (F2)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 12h4M8 10v4M15 11h.01M18 13h.01"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 12 2 12s0 2.4.686 3.258c.007.05.011.1.017.152A4 4 0 0 0 6.68 19h10.64a4 4 0 0 0 3.978-3.59c.006-.052.01-.101.017-.152C22 14.4 22 12 22 12s0-2.4-.686-3.258c-.007-.05-.011-.1-.017-.152A4 4 0 0 0 17.32 5z"/></svg>
+        <span>Games</span>
       </button>
 
-      <button id="btn-controls" class="btn-icon" title="Keyboard & Mouse Controls Guide">
-        <span>⌨️</span> Keys
+      <button id="btn-controls" class="btn-icon" title="Controls guide">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h.01M18 14h.01M9 14h6"/></svg>
       </button>
 
-      <button id="btn-fullscreen" class="btn-icon" title="Full Screen (F11)">
-        <span>⛶</span> Fullscreen
+      <button id="btn-fullscreen" class="btn-icon" title="Fullscreen (F11)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
       </button>
     </div>
   </header>
 
-  <!-- INSECURE HTTP TIP BANNER -->
+  <!-- MSE FALLBACK TIP BANNER -->
   <div id="insecure-http-banner">
     <span>
-      ⚡ <strong>MSE Hardware Player Active:</strong> Playing over plain HTTP. For lowest input lag WebCodecs (&lt;5ms), enable flag in Chrome: <code style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px; user-select: all;">chrome://flags/#unsafely-treat-insecure-origin-as-secure</code> and add your phone IP.
+      Using the MSE decoder. For the lower-latency WebCodecs path, allow this origin at
+      <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code> and reload.
     </span>
-    <button onclick="document.getElementById('insecure-http-banner').style.display='none'" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1rem; padding: 0 4px;">✕</button>
+    <button onclick="document.getElementById('insecure-http-banner').style.display='none'">×</button>
   </div>
 
   <!-- INPUT UNAVAILABLE WARNING BANNER -->
   <div id="input-warn-banner">
     <span>
-      ⚠ <strong>Remote input is OFF on the phone.</strong>
-      Enable <strong>Sunshine Cast Controller</strong> under Settings &gt; Accessibility. If that toggle is already ON, switch it OFF then ON once (it goes stale after app updates).
+      <strong>Remote input is off.</strong>
+      Enable Sunshine Cast Controller in the phone's Accessibility settings - if it is already on, toggle it off and on once.
     </span>
-    <button onclick="document.getElementById('input-warn-banner').classList.remove('active')">✕</button>
+    <button onclick="document.getElementById('input-warn-banner').classList.remove('active')">×</button>
   </div>
 
   <!-- MAIN STREAM AREA -->
@@ -791,38 +780,49 @@ object WebClientHtml {
 
       <!-- Live Performance HUD -->
       <div class="stream-hud">
-        <span id="hud-engine">Engine...</span>
-        <span id="hud-fps">0 FPS</span>
+        <span id="hud-engine">…</span>
+        <span id="hud-fps">0 fps</span>
         <span id="hud-bitrate">0.0 Mbps</span>
-        <span id="hud-latency">0 ms RTT</span>
+        <span id="hud-latency">0 ms</span>
       </div>
 
       <!-- Quick Floating Control Dock -->
       <div class="quick-dock" id="quick-dock">
-        <button id="dock-btn-clean" class="btn-icon">👁️ Clean Screen</button>
-        <button id="dock-btn-map" class="btn-icon" title="Calibrate game button positions (F3)">🗺 Map Keys</button>
-        <button id="dock-btn-launcher" class="btn-icon">🎮 Switch Game</button>
-        <button id="dock-btn-audio" class="btn-icon">🔊 Audio On</button>
-        <button id="dock-btn-lock" class="btn-icon">🖱️ Lock Mouse</button>
+        <button id="dock-btn-clean" class="btn-icon" title="Hide all UI (` or F10)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          <span>Hide UI</span>
+        </button>
+        <button id="dock-btn-map" class="btn-icon" title="Map keys to on-screen buttons (F3)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+          <span>Map keys</span>
+        </button>
+        <button id="dock-btn-launcher" class="btn-icon" title="Game library (F2)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 12h4M8 10v4M15 11h.01M18 13h.01"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 12 2 12s0 2.4.686 3.258c.007.05.011.1.017.152A4 4 0 0 0 6.68 19h10.64a4 4 0 0 0 3.978-3.59c.006-.052.01-.101.017-.152C22 14.4 22 12 22 12s0-2.4-.686-3.258c-.007-.05-.011-.1-.017-.152A4 4 0 0 0 17.32 5z"/></svg>
+          <span>Games</span>
+        </button>
+        <button id="dock-btn-audio" class="btn-icon active" title="Toggle audio">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>
+          <span id="dock-audio-label">Audio</span>
+        </button>
+        <button id="dock-btn-lock" class="btn-icon" title="Lock mouse pointer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="18" rx="6"/><path d="M12 7v5"/></svg>
+          <span>Lock pointer</span>
+        </button>
       </div>
 
       <!-- Floating Button in Clean Mode to Restore UI -->
-      <button id="clean-mode-floating-btn" title="Show UI Controls (Hotkey: ` or F10)">
-        👁️ Show Controls (<span class="key-badge" style="font-size:0.7rem;">`</span>)
+      <button id="clean-mode-floating-btn" title="Show controls (` or F10)">
+        Show UI · `
       </button>
     </div>
 
-    <!-- GAME LAUNCHER OVERLAY (Sunshine Style) -->
+    <!-- GAME LAUNCHER OVERLAY -->
     <div id="launcher-panel">
       <div class="launcher-title-row">
-        <div>
-          <h2>Game & Emulator Library</h2>
-          <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 4px;">
-            Select a game or emulator to launch remotely on your phone and stream immediately to Chrome.
-          </p>
-        </div>
-        <button id="btn-close-launcher" class="btn-icon" style="padding: 8px 16px;">
-          ✕ Close to Stream
+        <h2>Games</h2>
+        <button id="btn-close-launcher" class="btn-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          <span>Close</span>
         </button>
       </div>
       <div class="games-grid" id="games-grid">
@@ -834,96 +834,48 @@ object WebClientHtml {
   <!-- CONTROLS GUIDE MODAL -->
   <div class="modal-backdrop" id="modal-backdrop"></div>
   <div id="controls-modal">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-      <h3>🎮 Laptop Keyboard & Mouse Controls</h3>
-      <button id="btn-close-modal" style="background:none; border:none; color:var(--text-muted); font-size: 1.2rem; cursor:pointer;">✕</button>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+      <h3>Controls</h3>
+      <button id="btn-close-modal" style="background:none; border:none; color:var(--text-faint); font-size: 1.1rem; cursor:pointer; padding: 2px 4px;">×</button>
     </div>
-    <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
-      Full desktop typing, mouse gestures, and controller bindings are sent in real time:
-    </p>
     <table class="key-table">
-      <tr>
-        <td><span class="key-badge">` (Backtick)</span> or <span class="key-badge">F10</span></td>
-        <td><strong>Toggle Clean Screen:</strong> Hides all menus and options for distraction-free gaming</td>
-      </tr>
-      <tr>
-        <td><span class="key-badge">Left Mouse Click & Drag</span></td>
-        <td>Direct On-Screen Touch / Tap & Drag anywhere on phone display</td>
-      </tr>
-      <tr>
-        <td><span class="key-badge">Entire Keyboard (A-Z, 0-9, etc.)</span></td>
-        <td>Types text into active fields / KDE Connect style remote keyboard</td>
-      </tr>
-      <tr>
-        <td><span class="key-badge">W / A / S / D</span> or <span class="key-badge">Arrows</span></td>
-        <td>D-Pad / Analog Direction Movement</td>
-      </tr>
-      <tr>
-        <td><span class="key-badge">J / K / U / I</span></td>
-        <td>Action Buttons (Cross, Circle, Square, Triangle / A, B, X, Y)</td>
-      </tr>
-      <tr>
-        <td><span class="key-badge">Q / E</span></td>
-        <td>Shoulder Buttons (L1 / R1)</td>
-      </tr>
-      <tr>
-        <td><span class="key-badge">Enter / Space</span></td>
-        <td>Start / Select / Jump</td>
-      </tr>
-      <tr>
-        <td><span class="key-badge">Escape</span></td>
-        <td>Android Back Button / In-Game Pause Menu</td>
-      </tr>
-      <tr>
-        <td><span class="key-badge">F2</span></td>
-        <td>Open / Close Game Launcher Library</td>
-      </tr>
-      <tr>
-        <td><span class="key-badge">F3</span></td>
-        <td><strong>Calibrate Buttons:</strong> teach keyboard / gamepad keys where each on-screen game button is (press-and-hold!)</td>
-      </tr>
-      <tr>
-        <td><span class="key-badge">Mouse Wheel</span></td>
-        <td>Scroll / swipe the phone screen vertically</td>
-      </tr>
+      <tr><td><strong>Touch / drag</strong></td><td><span class="key-badge">Click / drag</span></td></tr>
+      <tr><td><strong>Scroll</strong></td><td><span class="key-badge">Wheel</span></td></tr>
+      <tr><td><strong>Typing</strong></td><td><span class="key-badge">Any key</span></td></tr>
+      <tr><td><strong>D-pad</strong></td><td><span class="key-badge">WASD / Arrows</span></td></tr>
+      <tr><td><strong>A · B · X · Y</strong></td><td><span class="key-badge">J · K · U · I</span></td></tr>
+      <tr><td><strong>L1 / R1</strong></td><td><span class="key-badge">Q / E</span></td></tr>
+      <tr><td><strong>Start / Select</strong></td><td><span class="key-badge">Enter / Space</span></td></tr>
+      <tr><td><strong>Android back</strong></td><td><span class="key-badge">Esc</span></td></tr>
+      <tr><td><strong>Game library</strong></td><td><span class="key-badge">F2</span></td></tr>
+      <tr><td><strong>Map game buttons</strong></td><td><span class="key-badge">F3</span></td></tr>
+      <tr><td><strong>Hide UI</strong></td><td><span class="key-badge">` / F10</span></td></tr>
+      <tr><td><strong>Fullscreen</strong></td><td><span class="key-badge">F11</span></td></tr>
     </table>
-    <div style="background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.2); border-radius: 8px; padding: 10px; font-size: 0.8rem; margin-bottom: 16px;">
-      💡 <strong>Pro-Tip:</strong> Press <span class="key-badge">`</span> (Backtick) at any time to hide all buttons, headers, and HUDs while gaming!
-    </div>
-    <div style="text-align: right;">
-      <button id="btn-modal-ok" class="btn-icon" style="background: var(--primary); color: #000; font-weight: 700;">Got It!</button>
+    <div class="modal-footer">
+      <button id="btn-modal-ok" class="btn-solid">Close</button>
     </div>
   </div>
 
   <!-- KEYMAP CALIBRATION PANEL -->
   <div id="keymap-panel">
     <div class="keymap-head">
-      <h3>🎮 Button Map</h3>
-      <button id="keymap-close" class="btn-icon">✕</button>
+      <h3>Map keys</h3>
+      <button id="keymap-close" class="btn-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
     </div>
     <p class="keymap-sub">
-      Tap <strong>Set</strong>, then click that button ON the video stream. Keys press-and-HOLD at that spot (works for keyboard, gamepad &amp; on-screen taps). Escape cancels.
+      Click <strong>Set</strong>, then click that button on the stream. Keys press-and-hold at that spot. Esc cancels.
     </p>
     <div id="keymap-list"></div>
-    <button id="keymap-reset" class="btn-icon">Reset to defaults</button>
+    <button id="keymap-reset" class="btn-icon">Reset</button>
   </div>
 
   <!-- CALIBRATION HINT -->
   <div id="calibration-hint">
-    <div>
-      <strong id="calibration-label">Button</strong><br/>
-      Now click the button position on the phone screen…
-    </div>
-  </div>
-
-  <!-- PIN AUTH MODAL -->
-  <div id="pin-backdrop"></div>
-  <div id="pin-modal">
-    <h3>🔐 Connection PIN required</h3>
-    <p>Enter the PIN shown on the Sunshine Cast dashboard of your phone (also visible in the streaming notification).</p>
-    <input id="pin-input" type="text" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="PIN" />
-    <div id="pin-error"></div>
-    <button id="pin-submit" class="btn-icon" style="background: var(--primary); color: #000; font-weight: 700;">Connect</button>
+    <strong id="calibration-label">Button</strong><br/>
+    Click the button position on the stream
   </div>
 
   <script>
@@ -935,15 +887,15 @@ object WebClientHtml {
     let audioContext = null;
     let isConnected = false;
     let canvas = document.getElementById('stream-canvas');
-    let ctx = canvas.getContext('2d');
+    let ctx = canvas.getContext('2d', { desynchronized: true, alpha: false });
     let videoElement = document.getElementById('stream-video');
     let streamContainer = document.getElementById('stream-container');
     let touchCursor = document.getElementById('touch-cursor');
     let audioEnabled = true;
 
-    // --- CONNECTION PIN & AUTH STATE ---
-    let storedPin = localStorage.getItem('sc_pin') || '';
-    let authPending = false;
+    // Clean up any PIN stored by older versions (auth was removed).
+    try { localStorage.removeItem('sc_pin'); } catch (e) {}
+
     let pingTimerStarted = false;
 
     // Performance telemetry
@@ -1044,29 +996,32 @@ object WebClientHtml {
     dockBtnLauncher.addEventListener('click', () => toggleLauncher(true));
     btnCloseLauncher.addEventListener('click', () => toggleLauncher(false));
 
+    function gameIconContent(app) {
+      if (app.iconBase64) {
+        return '<img src="data:image/png;base64,' + app.iconBase64 + '" alt="' + app.appName + '" />';
+      }
+      const initial = (app.appName || '?').trim().charAt(0).toUpperCase();
+      return '<span style="font-size: 1.5rem; font-weight: 600; color: var(--text-muted);">' + initial + '</span>';
+    }
+
     async function loadGames() {
       const grid = document.getElementById('games-grid');
       try {
-        const res = await fetch('/api/apps?pin=' + encodeURIComponent(storedPin));
+        const res = await fetch('/api/apps');
         const apps = await res.json();
         grid.innerHTML = '';
 
         if (!apps || apps.length === 0) {
-          grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 40px;">No installed games detected yet. Phone home screen is streaming live!</div>';
+          grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-faint); padding: 40px;">No apps found</div>';
           return;
         }
 
         apps.forEach(app => {
           const card = document.createElement('div');
           card.className = 'game-card';
-          const iconContent = app.iconBase64
-            ? '<img src="data:image/png;base64,' + app.iconBase64 + '" alt="' + app.appName + '" />'
-            : '🎮';
-          const tagLabel = app.isEmulator ? 'Emulator' : 'Game';
           card.innerHTML =
-            '<div class="game-icon-wrapper">' + iconContent + '</div>' +
-            '<div class="game-card-title">' + app.appName + '</div>' +
-            '<div class="game-card-tag">' + tagLabel + '</div>';
+            '<div class="game-icon-wrapper">' + gameIconContent(app) + '</div>' +
+            '<div class="game-card-title">' + app.appName + '</div>';
           card.addEventListener('click', () => launchGame(app.packageName, app.appName));
           grid.appendChild(card);
         });
@@ -1079,14 +1034,14 @@ object WebClientHtml {
     function loadFallbackGames() {
       const grid = document.getElementById('games-grid');
       const commonGames = [
-        { name: 'PPSSPP (PSP Emulator)', pkg: 'org.ppsspp.ppsspp', icon: '🎮', tag: 'PSP Emulator' },
-        { name: 'PPSSPP Gold', pkg: 'org.ppsspp.ppssppgold', icon: '🏆', tag: 'PSP Emulator' },
-        { name: 'RetroArch', pkg: 'com.retroarch', icon: '🕹️', tag: 'Multi-Emulator' },
-        { name: 'AetherSX2 / NetherSX2', pkg: 'xyz.aethersx2.android', icon: '⚡', tag: 'PS2 Emulator' },
-        { name: 'Dolphin Emulator', pkg: 'org.dolphinemu.dolphinemu', icon: '🐬', tag: 'GameCube / Wii' },
-        { name: 'DuckStation', pkg: 'com.github.stenzek.duckstation', icon: '🦆', tag: 'PS1 Emulator' },
-        { name: 'Minecraft', pkg: 'com.mojang.minecraftpe', icon: '⛏️', tag: 'Action / Sandbox' },
-        { name: 'Home Screen / Any App', pkg: 'launcher', icon: '📱', tag: 'Desktop' }
+        { name: 'PPSSPP', pkg: 'org.ppsspp.ppsspp' },
+        { name: 'PPSSPP Gold', pkg: 'org.ppsspp.ppssppgold' },
+        { name: 'RetroArch', pkg: 'com.retroarch' },
+        { name: 'AetherSX2', pkg: 'xyz.aethersx2.android' },
+        { name: 'Dolphin Emulator', pkg: 'org.dolphinemu.dolphinemu' },
+        { name: 'DuckStation', pkg: 'com.github.stenzek.duckstation' },
+        { name: 'Minecraft', pkg: 'com.mojang.minecraftpe' },
+        { name: 'Home Screen', pkg: 'launcher' }
       ];
 
       grid.innerHTML = '';
@@ -1094,9 +1049,8 @@ object WebClientHtml {
         const card = document.createElement('div');
         card.className = 'game-card';
         card.innerHTML =
-          '<div class="game-icon-wrapper">' + app.icon + '</div>' +
-          '<div class="game-card-title">' + app.name + '</div>' +
-          '<div class="game-card-tag">' + app.tag + '</div>';
+          '<div class="game-icon-wrapper">' + gameIconContent(app) + '</div>' +
+          '<div class="game-card-title">' + app.name + '</div>';
         card.addEventListener('click', () => launchGame(app.pkg, app.name));
         grid.appendChild(card);
       });
@@ -1114,7 +1068,7 @@ object WebClientHtml {
         }));
       } else {
         try {
-          await fetch('/api/launch?pin=' + encodeURIComponent(storedPin), {
+          await fetch('/api/launch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ packageName: pkg })
@@ -1179,16 +1133,14 @@ object WebClientHtml {
         useWebCodecs = true;
         canvas.style.display = 'block';
         videoElement.style.display = 'none';
-        document.getElementById('hud-engine').innerText = 'WebCodecs (<5ms)';
-        document.getElementById('hud-engine').style.color = 'var(--primary)';
+        document.getElementById('hud-engine').innerText = 'WebCodecs';
         document.getElementById('insecure-http-banner').style.display = 'none';
         videoDecoder = initVideoDecoder(codecStr);
       } else {
         useWebCodecs = false;
         canvas.style.display = 'none';
         videoElement.style.display = 'block';
-        document.getElementById('hud-engine').innerText = 'MSE Player (Hardware fMP4)';
-        document.getElementById('hud-engine').style.color = 'var(--success)';
+        document.getElementById('hud-engine').innerText = 'MSE';
         document.getElementById('insecure-http-banner').style.display = 'flex';
         initJMuxer();
       }
@@ -1273,6 +1225,33 @@ object WebClientHtml {
       }
     }
 
+    // --- MSE LIVE-EDGE CHASING (latency killer for the jmuxer path) ---
+    // MSE happily buffers seconds of video; without chasing, "latency" is just
+    // buffered time. Small drift -> play slightly faster than 1x; big drift
+    // (network hiccup) -> snap to the live edge.
+    function chaseLiveEdge() {
+      if (useWebCodecs) return;
+      try {
+        if (videoElement.seeking || videoElement.readyState < 2) return;
+        const b = videoElement.buffered;
+        if (!b || b.length === 0) return;
+        const liveEdge = b.end(b.length - 1);
+        const behind = liveEdge - videoElement.currentTime;
+        if (behind > 0.35) {
+          if (videoElement.playbackRate !== 1) videoElement.playbackRate = 1;
+          videoElement.currentTime = liveEdge - 0.05;
+        } else if (behind > 0.06) {
+          const targetRate = Math.min(1.12, 1 + behind * 0.5);
+          if (Math.abs(videoElement.playbackRate - targetRate) > 0.005) {
+            videoElement.playbackRate = targetRate;
+          }
+        } else if (videoElement.playbackRate !== 1) {
+          videoElement.playbackRate = 1;
+        }
+      } catch (e) {}
+    }
+    setInterval(chaseLiveEdge, 250);
+
     function requestKeyframe() {
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'control', action: 'request_keyframe' }));
@@ -1324,10 +1303,12 @@ object WebClientHtml {
     document.getElementById('dock-btn-audio').addEventListener('click', () => {
       initAudio();
       audioEnabled = !audioEnabled;
-      document.getElementById('dock-btn-audio').innerText = audioEnabled ? '🔊 Audio On' : '🔇 Audio Off';
+      const btn = document.getElementById('dock-btn-audio');
+      btn.classList.toggle('active', audioEnabled);
+      document.getElementById('dock-audio-label').innerText = audioEnabled ? 'Audio' : 'Muted';
     });
 
-    // --- REMOTE INPUT: AUTH, KEYMAP CALIBRATION, TOUCH, WHEEL, GAMEPAD ---
+    // --- REMOTE INPUT: KEYMAP CALIBRATION, TOUCH, WHEEL, GAMEPAD ---
 
     function afterAuth() {
       document.getElementById('connection-status').innerText = 'Streaming';
@@ -1348,43 +1329,6 @@ object WebClientHtml {
         banner.classList.add('active');
       }
     }
-
-    // PIN modal
-    const pinModal = document.getElementById('pin-modal');
-    const pinBackdrop = document.getElementById('pin-backdrop');
-    const pinInput = document.getElementById('pin-input');
-    const pinError = document.getElementById('pin-error');
-
-    function showPinModal(message) {
-      authPending = true;
-      pinError.innerText = message || '';
-      pinBackdrop.classList.add('active');
-      pinModal.classList.add('active');
-      setTimeout(() => { pinInput.focus(); }, 60);
-    }
-
-    function submitPin() {
-      const val = (pinInput.value || '').trim();
-      if (!val) {
-        pinError.innerText = 'Enter the PIN shown on the phone';
-        return;
-      }
-      storedPin = val;
-      localStorage.setItem('sc_pin', val);
-      authPending = false;
-      pinModal.classList.remove('active');
-      pinBackdrop.classList.remove('active');
-      connectWebSocket();
-    }
-
-    document.getElementById('pin-submit').addEventListener('click', submitPin);
-    pinInput.addEventListener('keydown', (e) => {
-      e.stopPropagation();
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        submitPin();
-      }
-    });
 
     // --- KEYMAP CALIBRATION (teach keys where on-screen buttons are) ---
     const KEY_CONTROLS = [
@@ -1521,7 +1465,7 @@ object WebClientHtml {
       const el = getActiveDisplay();
       if (!el) { layer.style.display = 'none'; return; }
       const cRect = streamContainer.getBoundingClientRect();
-      const vRect = el.getBoundingClientRect();
+      const vRect = displayedContentRect();
       if (vRect.width <= 0 || vRect.height <= 0) {
         // Display not visible yet (e.g. before the stream starts)
         layer.style.display = 'none';
@@ -1544,11 +1488,7 @@ object WebClientHtml {
 
     // --- MULTI-TOUCH BRIDGING (touchscreen laptops & tablets) ---
     function touchNormalizedCoords(t) {
-      const el = getActiveDisplay();
-      const rect = el.getBoundingClientRect();
-      const x = Math.max(0, Math.min(1, (t.clientX - rect.left) / rect.width));
-      const y = Math.max(0, Math.min(1, (t.clientY - rect.top) / rect.height));
-      return { x, y };
+      return normIntoContent(t.clientX, t.clientY);
     }
 
     streamContainer.addEventListener('touchstart', (e) => {
@@ -1675,14 +1615,11 @@ object WebClientHtml {
 
       ws.onopen = () => {
         isConnected = true;
-        document.getElementById('connection-status').innerText = 'Authorizing...';
-        document.getElementById('status-indicator').style.background = 'var(--warning)';
-        ws.send(JSON.stringify({ type: 'auth', pin: storedPin }));
+        afterAuth();
       };
 
       ws.onclose = () => {
         isConnected = false;
-        if (authPending) return; // Wait for PIN entry; submitPin() reconnects
         document.getElementById('connection-status').innerText = 'Disconnected';
         document.getElementById('status-indicator').style.background = 'var(--danger)';
         setTimeout(connectWebSocket, 1500); // Auto reconnect
@@ -1706,12 +1643,7 @@ object WebClientHtml {
         const msg = JSON.parse(text);
         if (msg.type === 'pong') {
           currentRtt = Math.round(performance.now() - pingStartTime);
-          document.getElementById('hud-latency').innerText = currentRtt + ' ms RTT';
-        } else if (msg.type === 'auth_ok') {
-          afterAuth();
-        } else if (msg.type === 'auth_failed') {
-          if (ws) { try { ws.close(); } catch (e) {} }
-          showPinModal('Wrong PIN - enter the one shown on the phone dashboard');
+          document.getElementById('hud-latency').innerText = currentRtt + ' ms';
         } else if (msg.type === 'input_status') {
           updateInputStatus(msg);
         } else if (msg.type === 'status') {
@@ -1784,13 +1716,9 @@ object WebClientHtml {
               if (videoElement.paused) {
                 videoElement.play().catch(() => {});
               }
-              // Prevent buffer accumulation to preserve ultra-low latency
-              if (videoElement.buffered && videoElement.buffered.length > 0) {
-                const liveEdge = videoElement.buffered.end(videoElement.buffered.length - 1);
-                if (liveEdge - videoElement.currentTime > 0.3) {
-                  videoElement.currentTime = liveEdge - 0.02;
-                }
-              }
+              // Live-edge chasing runs on its own interval (and on the feed
+              // below) - see chaseLiveEdge().
+              chaseLiveEdge();
             } catch (err) {
               console.warn('JMuxer feed error:', err);
             }
@@ -1821,7 +1749,7 @@ object WebClientHtml {
       currentFps = Math.round(frameCount / elapsedFps);
       frameCount = 0;
       lastFpsTime = now;
-      document.getElementById('hud-fps').innerText = currentFps + ' FPS';
+      document.getElementById('hud-fps').innerText = currentFps + ' fps';
 
       const elapsedBitrate = (now - lastBitrateTime) / 1000;
       currentBitrateMbps = ((bytesReceived * 8) / (elapsedBitrate * 1_000_000)).toFixed(1);
@@ -1841,27 +1769,63 @@ object WebClientHtml {
     let virtualMouseX = -1;
     let virtualMouseY = -1;
 
+    // The displayed frame may be letterboxed inside the element (object-fit)
+    // AND letterboxed by the phone (frame aspect vs screen aspect). Input must
+    // be normalized against the *displayed frame*, not the element rect, or
+    // touches drift toward the center and skew around the edges (analog
+    // sticks read the wrong direction).
+    function displayedContentRect() {
+      const el = getActiveDisplay();
+      const elRect = el.getBoundingClientRect();
+      let vw = 0, vh = 0;
+      if (el.tagName === 'VIDEO') {
+        vw = el.videoWidth || 0; vh = el.videoHeight || 0;
+      } else {
+        vw = el.width || 0; vh = el.height || 0;
+      }
+      if (!vw || !vh || !elRect.width || !elRect.height) {
+        return { left: elRect.left, top: elRect.top, width: elRect.width, height: elRect.height };
+      }
+      let fit = 'contain';
+      try { fit = getComputedStyle(el).objectFit || 'contain'; } catch (e) {}
+      if (fit === 'fill') {
+        return { left: elRect.left, top: elRect.top, width: elRect.width, height: elRect.height };
+      }
+      const scale = (fit === 'cover')
+        ? Math.max(elRect.width / vw, elRect.height / vh)
+        : Math.min(elRect.width / vw, elRect.height / vh);
+      const cw = vw * scale, ch = vh * scale;
+      return {
+        left: elRect.left + (elRect.width - cw) / 2,
+        top: elRect.top + (elRect.height - ch) / 2,
+        width: cw,
+        height: ch
+      };
+    }
+
+    function normIntoContent(clientX, clientY) {
+      const r = displayedContentRect();
+      const x = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+      const y = Math.max(0, Math.min(1, (clientY - r.top) / r.height));
+      return { x, y };
+    }
+
     function effectiveCoords(e) {
       if (document.pointerLockElement) {
-        const el = getActiveDisplay();
-        const rect = el.getBoundingClientRect();
+        const r = displayedContentRect();
         if (virtualMouseX < 0) {
-          virtualMouseX = (e.clientX - rect.left) / rect.width;
-          virtualMouseY = (e.clientY - rect.top) / rect.height;
+          virtualMouseX = (e.clientX - r.left) / r.width;
+          virtualMouseY = (e.clientY - r.top) / r.height;
         }
-        virtualMouseX = Math.max(0, Math.min(1, virtualMouseX + (e.movementX || 0) / rect.width));
-        virtualMouseY = Math.max(0, Math.min(1, virtualMouseY + (e.movementY || 0) / rect.height));
+        virtualMouseX = Math.max(0, Math.min(1, virtualMouseX + (e.movementX || 0) / r.width));
+        virtualMouseY = Math.max(0, Math.min(1, virtualMouseY + (e.movementY || 0) / r.height));
         return { x: virtualMouseX, y: virtualMouseY };
       }
       virtualMouseX = -1;
       return getNormalizedCoords(e);
     }
     function getNormalizedCoords(e) {
-      const el = getActiveDisplay();
-      const rect = el.getBoundingClientRect();
-      const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
-      return { x, y };
+      return normIntoContent(e.clientX, e.clientY);
     }
 
     // Mouse Input

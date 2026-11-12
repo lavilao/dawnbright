@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.Point
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
@@ -33,7 +34,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.net.Inet4Address
 import java.net.NetworkInterface
-import kotlin.random.Random
+import android.view.WindowManager
 
 class ScreenCastService : Service() {
 
@@ -41,8 +42,6 @@ class ScreenCastService : Service() {
         private const val TAG = "ScreenCastService"
         private const val NOTIFICATION_ID = 4040
         private const val CHANNEL_ID = "sunshine_cast_channel"
-        private const val PREFS_NAME = "sunshine_cast_prefs"
-        private const val PREF_PIN = "auth_pin"
 
         const val ACTION_START = "com.example.action.START"
         const val ACTION_STOP = "com.example.action.STOP"
@@ -54,33 +53,6 @@ class ScreenCastService : Service() {
         val serverStatus: StateFlow<ServerStatus> = _serverStatus.asStateFlow()
 
         var currentConfig: StreamConfig = StreamConfig()
-
-        /**
-         * Connection PIN required by browser clients (shown on the dashboard).
-         * Empty means auth is disabled (not the default - a PIN is generated once
-         * and persisted so every person on the LAN can't watch / control the screen).
-         */
-        var connectionPin: String = ""
-            private set
-
-        fun ensurePin(context: Context): String {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            var pin = prefs.getString(PREF_PIN, null)
-            if (pin.isNullOrEmpty()) {
-                pin = Random.nextInt(1000, 10000).toString()
-                prefs.edit().putString(PREF_PIN, pin).apply()
-            }
-            connectionPin = pin
-            return pin
-        }
-
-        fun rotatePin(context: Context): String {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val pin = Random.nextInt(1000, 10000).toString()
-            prefs.edit().putString(PREF_PIN, pin).apply()
-            connectionPin = pin
-            return pin
-        }
     }
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -96,7 +68,6 @@ class ScreenCastService : Service() {
     override fun onCreate() {
         super.onCreate()
         appRepo = AppRepository(this)
-        ensurePin(this)
         createNotificationChannel()
 
         serviceScope.launch(Dispatchers.IO) {
@@ -151,8 +122,8 @@ class ScreenCastService : Service() {
 
             val ip = getLocalIpAddress()
             val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("Sunshine Cast Server")
-                .setContentText("http://" + ip + ":" + currentConfig.port + "  |  PIN " + connectionPin)
+                .setContentTitle("Sunshine Cast")
+                .setContentText("Streaming at http://" + ip + ":" + currentConfig.port)
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setOngoing(true)
                 .setContentIntent(pendingIntent)
@@ -210,7 +181,6 @@ class ScreenCastService : Service() {
                     getStatusProvider = { _serverStatus.value },
                     onInputReceived = { event -> handleRemoteInput(event) },
                     onKeyFrameRequested = { videoEncoder?.requestKeyFrame() },
-                    getPin = { connectionPin },
                     context = this
                 ).apply {
                     start(serviceScope)
@@ -235,7 +205,10 @@ class ScreenCastService : Service() {
                     },
                     onSpsPpsAvailable = { _, _ -> }
                 ).apply {
-                    start(projection, serviceScope)
+                    start(projection, serviceScope, realDisplaySize())
+                    // Tell the input pipeline what frame geometry the browser sees,
+                    // so injected coordinates survive any letterboxing.
+                    SunshineAccessibilityService.setMirrorFrameSize(frameWidth, frameHeight)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error starting HardwareVideoEncoder: ${e.message}", e)
@@ -329,6 +302,7 @@ class ScreenCastService : Service() {
     private fun stopStreaming() {
         Log.i(TAG, "Stopping streaming components")
         SunshineAccessibilityService.onBindingChanged = null
+        SunshineAccessibilityService.setMirrorFrameSize(0, 0)
         try { videoEncoder?.stop() } catch (e: Exception) { Log.w(TAG, e) }
         videoEncoder = null
 
@@ -346,6 +320,21 @@ class ScreenCastService : Service() {
             isStreaming = false,
             clientCount = 0
         )
+    }
+
+    /** Rotation-aware real display size (same technique the accessibility service uses). */
+    private fun realDisplaySize(): Point {
+        val point = Point()
+        try {
+            val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            @Suppress("DEPRECATION") // getRealSize covers system bars, which is what we need
+            wm.defaultDisplay.getRealSize(point)
+            if (point.x > 0 && point.y > 0) return point
+        } catch (_: Exception) {
+        }
+        val dm = resources.displayMetrics
+        point.set(dm.widthPixels, dm.heightPixels)
+        return point
     }
 
     private fun getLocalIpAddress(): String {

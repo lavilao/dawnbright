@@ -1,7 +1,6 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,12 +12,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -50,8 +49,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.data.model.StreamConfig
-import com.example.ui.theme.NavySlate
-import com.example.ui.theme.SunshineCyan
+import com.example.ui.theme.Accent
+import com.example.ui.theme.Hairline
+import com.example.ui.theme.OnAccent
+import com.example.ui.theme.Surface
+import com.example.ui.theme.SurfaceHigh
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
@@ -82,25 +84,25 @@ fun ConfigDialog(
     val presets = remember {
         listOf(
             // 16:10 Modern Laptops (MacBook Air/Pro, Dell XPS, ThinkPad, ASUS ROG, Lenovo Legion)
-            ResolutionPreset(2560, 1600, "2560 x 1600", "16:10 Laptop", "QHD+ / Retina (MacBook Pro 16/14, Legion)"),
-            ResolutionPreset(1920, 1200, "1920 x 1200", "16:10 Laptop", "FHD+ (MacBook Air, Dell XPS, ThinkPad)"),
-            ResolutionPreset(1680, 1050, "1680 x 1050", "16:10 Laptop", "Standard 16:10 Laptop"),
-            ResolutionPreset(1440, 900, "1440 x 900", "16:10 Laptop", "MacBook Air 13\" Classic"),
+            ResolutionPreset(2560, 1600, "2560 x 1600", "16:10 Laptop", "QHD+ / Retina"),
+            ResolutionPreset(1920, 1200, "1920 x 1200", "16:10 Laptop", "FHD+"),
+            ResolutionPreset(1680, 1050, "1680 x 1050", "16:10 Laptop", "Standard 16:10"),
+            ResolutionPreset(1440, 900, "1440 x 900", "16:10 Laptop", "MacBook Air 13\""),
             ResolutionPreset(1280, 800, "1280 x 800", "16:10 Laptop", "WXGA / Steam Deck"),
 
             // 16:9 Standard Laptops & External Displays
-            ResolutionPreset(3840, 2160, "3840 x 2160", "16:9 Standard", "4K UHD Gaming"),
-            ResolutionPreset(2560, 1440, "2560 x 1440", "16:9 Standard", "2K QHD Gaming"),
-            ResolutionPreset(1920, 1080, "1920 x 1080", "16:9 Standard", "1080p Full HD (Most Common)"),
-            ResolutionPreset(1600, 900, "1600 x 900", "16:9 Standard", "HD+ Laptop"),
-            ResolutionPreset(1366, 768, "1366 x 768", "16:9 Standard", "Standard Budget Laptop"),
-            ResolutionPreset(1280, 720, "1280 x 720", "16:9 Standard", "720p HD (Low Latency)"),
+            ResolutionPreset(3840, 2160, "3840 x 2160", "16:9 Standard", "4K UHD"),
+            ResolutionPreset(2560, 1440, "2560 x 1440", "16:9 Standard", "2K QHD"),
+            ResolutionPreset(1920, 1080, "1920 x 1080", "16:9 Standard", "1080p Full HD"),
+            ResolutionPreset(1600, 900, "1600 x 900", "16:9 Standard", "HD+"),
+            ResolutionPreset(1366, 768, "1366 x 768", "16:9 Standard", "Budget laptop"),
+            ResolutionPreset(1280, 720, "1280 x 720", "16:9 Standard", "720p low latency"),
 
             // 3:2 Productivity & Mobile Native
-            ResolutionPreset(2256, 1504, "2256 x 1504", "3:2 / Other", "Surface Laptop 13.5\" 3:2"),
-            ResolutionPreset(2160, 1440, "2160 x 1440", "3:2 / Other", "Surface Pro 3:2"),
-            ResolutionPreset(2400, 1080, "2400 x 1080", "3:2 / Other", "Phone Landscape Native"),
-            ResolutionPreset(1080, 2400, "1080 x 2400", "3:2 / Other", "Phone Portrait Native")
+            ResolutionPreset(2256, 1504, "2256 x 1504", "3:2 / Other", "Surface Laptop 13.5\""),
+            ResolutionPreset(2160, 1440, "2160 x 1440", "3:2 / Other", "Surface Pro"),
+            ResolutionPreset(2400, 1080, "2400 x 1080", "3:2 / Other", "Phone landscape"),
+            ResolutionPreset(1080, 2400, "1080 x 2400", "3:2 / Other", "Phone portrait")
         )
     }
 
@@ -109,9 +111,8 @@ fun ConfigDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
-                .background(NavySlate)
-                .border(1.dp, Color(0xFF22304A), RoundedCornerShape(20.dp))
-                .padding(18.dp)
+                .background(Surface)
+                .padding(20.dp)
         ) {
             Column {
                 Row(
@@ -121,14 +122,15 @@ fun ConfigDialog(
                 ) {
                     Column {
                         Text(
-                            text = "Stream & Laptop Resolution",
+                            text = "Stream settings",
                             fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = SunshineCyan
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextPrimary
                         )
                         Text(
-                            text = "Current: ${selectedRes.first} x ${selectedRes.second}",
+                            text = "${selectedRes.first} x ${selectedRes.second}",
                             fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace,
                             color = TextMuted
                         )
                     }
@@ -144,7 +146,7 @@ fun ConfigDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // RESOLUTION CATEGORY TABS
                 Row(
@@ -157,8 +159,7 @@ fun ConfigDialog(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(if (isSelected) SunshineCyan.copy(alpha = 0.2f) else Color(0xFF141D2D))
-                                .border(1.dp, if (isSelected) SunshineCyan else Color(0xFF22304A), RoundedCornerShape(8.dp))
+                                .background(if (isSelected) SurfaceHigh else Color.Transparent)
                                 .clickable { selectedTab = tab }
                                 .padding(vertical = 6.dp),
                             contentAlignment = Alignment.Center
@@ -166,8 +167,8 @@ fun ConfigDialog(
                             Text(
                                 text = tab,
                                 fontSize = 11.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isSelected) SunshineCyan else TextSecondary
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                                color = if (isSelected) Accent else TextSecondary
                             )
                         }
                     }
@@ -181,17 +182,9 @@ fun ConfigDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFF141D2D))
-                            .border(1.dp, Color(0xFF22304A), RoundedCornerShape(12.dp))
+                            .background(SurfaceHigh)
                             .padding(14.dp)
                     ) {
-                        Text(
-                            text = "ENTER EXACT LAPTOP RESOLUTION",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextMuted
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -212,12 +205,16 @@ fun ConfigDialog(
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 modifier = Modifier.weight(1f),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = SunshineCyan,
-                                    unfocusedBorderColor = Color(0xFF22304A)
+                                    focusedBorderColor = Accent,
+                                    unfocusedBorderColor = Hairline,
+                                    focusedContainerColor = Surface,
+                                    unfocusedContainerColor = Surface,
+                                    focusedTextColor = TextPrimary,
+                                    unfocusedTextColor = TextPrimary
                                 )
                             )
 
-                            Text(text = "×", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                            Text(text = "×", fontSize = 16.sp, color = TextMuted)
 
                             OutlinedTextField(
                                 value = customHeightStr,
@@ -234,26 +231,23 @@ fun ConfigDialog(
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 modifier = Modifier.weight(1f),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = SunshineCyan,
-                                    unfocusedBorderColor = Color(0xFF22304A)
+                                    focusedBorderColor = Accent,
+                                    unfocusedBorderColor = Hairline,
+                                    focusedContainerColor = Surface,
+                                    unfocusedContainerColor = Surface,
+                                    focusedTextColor = TextPrimary,
+                                    unfocusedTextColor = TextPrimary
                                 )
                             )
                         }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Tip: Width and height will be auto-rounded to even pixels for hardware encoding.",
-                            fontSize = 10.sp,
-                            color = TextMuted
-                        )
                     }
                 } else {
                     val filteredPresets = presets.filter { it.category == selectedTab }
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 160.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                            .heightIn(max = 168.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         items(filteredPresets) { preset ->
                             val isSelected = selectedRes.first == preset.width && selectedRes.second == preset.height
@@ -261,8 +255,7 @@ fun ConfigDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isSelected) SunshineCyan.copy(alpha = 0.15f) else Color(0xFF141D2D))
-                                    .border(1.dp, if (isSelected) SunshineCyan else Color(0xFF22304A), RoundedCornerShape(8.dp))
+                                    .background(if (isSelected) Accent.copy(alpha = 0.12f) else Color.Transparent)
                                     .clickable {
                                         selectedRes = Pair(preset.width, preset.height)
                                         customWidthStr = preset.width.toString()
@@ -276,9 +269,9 @@ fun ConfigDialog(
                                     Text(
                                         text = preset.label,
                                         fontSize = 12.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                        fontWeight = FontWeight.Medium,
                                         fontFamily = FontFamily.Monospace,
-                                        color = if (isSelected) SunshineCyan else TextPrimary
+                                        color = if (isSelected) Accent else TextPrimary
                                     )
                                     if (preset.note.isNotEmpty()) {
                                         Text(
@@ -289,11 +282,11 @@ fun ConfigDialog(
                                     }
                                 }
                                 if (isSelected) {
-                                    Text(
-                                        text = "✓",
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = SunshineCyan
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = Accent,
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
                             }
@@ -301,36 +294,35 @@ fun ConfigDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-                // FRAMERATE (60 FPS vs 30 FPS)
+                // FRAMERATE
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "FRAMERATE",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextMuted
+                        text = "Framerate",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TextSecondary
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(60 to "60 FPS", 30 to "30 FPS").forEach { (fpsVal, label) ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(60 to "60 fps", 30 to "30 fps").forEach { (fpsVal, label) ->
                             val isSelected = selectedFps == fpsVal
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(if (isSelected) SunshineCyan.copy(alpha = 0.2f) else Color(0xFF141D2D))
-                                    .border(1.dp, if (isSelected) SunshineCyan else Color(0xFF22304A), RoundedCornerShape(6.dp))
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSelected) SurfaceHigh else Color.Transparent)
                                     .clickable { selectedFps = fpsVal }
-                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                                    .padding(horizontal = 12.dp, vertical = 4.dp)
                             ) {
                                 Text(
                                     text = label,
                                     fontSize = 11.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSelected) SunshineCyan else TextSecondary
+                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                                    color = if (isSelected) Accent else TextSecondary
                                 )
                             }
                         }
@@ -345,16 +337,17 @@ fun ConfigDialog(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "BANDWIDTH",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextMuted
+                        text = "Bitrate",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TextSecondary
                     )
                     Text(
                         text = "${bitrateMbps.toInt()} Mbps",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SunshineCyan
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        fontFamily = FontFamily.Monospace,
+                        color = TextPrimary
                     )
                 }
                 Slider(
@@ -363,9 +356,9 @@ fun ConfigDialog(
                     valueRange = 4f..30f,
                     steps = 25,
                     colors = SliderDefaults.colors(
-                        thumbColor = SunshineCyan,
-                        activeTrackColor = SunshineCyan,
-                        inactiveTrackColor = Color(0xFF22304A)
+                        thumbColor = Accent,
+                        activeTrackColor = Accent,
+                        inactiveTrackColor = Hairline
                     ),
                     modifier = Modifier.height(28.dp)
                 )
@@ -378,32 +371,25 @@ fun ConfigDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
-                        Text(
-                            text = "Game Sound Capture",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = TextPrimary
-                        )
-                        Text(
-                            text = "Internal audio capture (Android 10+)",
-                            fontSize = 10.sp,
-                            color = TextMuted
-                        )
-                    }
+                    Text(
+                        text = "Game sound",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TextSecondary
+                    )
                     Switch(
                         checked = audioEnabled,
                         onCheckedChange = { audioEnabled = it },
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = SunshineCyan,
-                            checkedTrackColor = SunshineCyan.copy(alpha = 0.3f),
+                            checkedThumbColor = OnAccent,
+                            checkedTrackColor = Accent,
                             uncheckedThumbColor = TextMuted,
-                            uncheckedTrackColor = Color(0xFF141D2D)
+                            uncheckedTrackColor = SurfaceHigh
                         )
                     )
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
                 Button(
                     onClick = {
@@ -419,18 +405,20 @@ fun ConfigDialog(
                             )
                         )
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = SunshineCyan),
-                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Accent,
+                        contentColor = OnAccent
+                    ),
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(44.dp)
+                        .height(46.dp)
                         .testTag("btn_save_config")
                 ) {
                     Text(
-                        text = "Apply Resolution (${selectedRes.first} x ${selectedRes.second})",
-                        color = Color.Black,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
+                        text = "Apply",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp
                     )
                 }
             }

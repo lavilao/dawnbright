@@ -2,17 +2,22 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val SunshineCyan = Color(0xFF00E5FF)
-val SunshineCyanGlow = Color(0x3300E5FF)
-val SunshinePurple = Color(0xFF7C4DFF)
-val SunshineEmerald = Color(0xFF00E676)
-val SunshineAmber = Color(0xFFFFAB00)
+// Surfaces - near-black neutrals, slightly layered
+val Bg = Color(0xFF0B0C0F)
+val Surface = Color(0xFF15171C)
+val SurfaceHigh = Color(0xFF1D2026)
+val Hairline = Color(0xFF262A32)
 
-val DarkObsidian = Color(0xFF090D16)
-val NavySlate = Color(0xFF121826)
-val NavySlateCard = Color(0xFF182235)
-val SlateBorder = Color(0xFF22304A)
+// Text
+val TextPrimary = Color(0xFFF4F5F7)
+val TextSecondary = Color(0xFF9BA1AB)
+val TextMuted = Color(0xFF6E7480)
 
-val TextPrimary = Color(0xFFF0F4F8)
-val TextSecondary = Color(0xFF8A99AD)
-val TextMuted = Color(0xFF5A697E)
+// Single accent - warm "sunshine" gold
+val Accent = Color(0xFFFFB454)
+val OnAccent = Color(0xFF231503)
+
+// Status
+val StatusOk = Color(0xFF3FB950)
+val StatusWarn = Color(0xFFD29922)
+val StatusErr = Color(0xFFF85149)

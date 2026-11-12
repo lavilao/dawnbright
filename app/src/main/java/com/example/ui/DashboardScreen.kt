@@ -7,11 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,7 +20,6 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -38,18 +33,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Keyboard
-import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.outlined.Layers
+import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -57,6 +52,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -71,31 +67,26 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.service.OverlayInputService
-import com.example.service.ScreenCastService
 import com.example.service.SunshineAccessibilityService
 import com.example.service.SunshineKeyboardService
 import com.example.ui.components.ConfigDialog
 import com.example.ui.components.GameCardItem
 import com.example.ui.components.KeymapGuideDialog
-import com.example.ui.components.MetricPill
-import com.example.ui.theme.DarkObsidian
-import com.example.ui.theme.NavySlate
-import com.example.ui.theme.NavySlateCard
-import com.example.ui.theme.SlateBorder
-import com.example.ui.theme.SunshineAmber
-import com.example.ui.theme.SunshineCyan
-import com.example.ui.theme.SunshineEmerald
-import com.example.ui.theme.SunshinePurple
+import com.example.ui.theme.Accent
+import com.example.ui.theme.Bg
+import com.example.ui.theme.Hairline
+import com.example.ui.theme.OnAccent
+import com.example.ui.theme.StatusErr
+import com.example.ui.theme.StatusOk
+import com.example.ui.theme.Surface
+import com.example.ui.theme.SurfaceHigh
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
@@ -122,13 +113,12 @@ fun DashboardScreen(
 
     // Real input status - "enabled in settings" is NOT the same as "service is bound".
     // After an app update / force-stop the toggle can stay ON while the service is
-    // dead; the middle state below tells the user exactly what to do about it.
+    // dead; the setup row below tells the user exactly what to do about it.
     var isAccessBound by remember { mutableStateOf(false) }
     var isAccessEnabled by remember { mutableStateOf(false) }
     var isImeEnabled by remember { mutableStateOf(false) }
     var isImeSelected by remember { mutableStateOf(false) }
     var canOverlay by remember { mutableStateOf(true) }
-    var connectionPin by remember { mutableStateOf("") }
 
     fun checkAccessEnabled(): Boolean {
         val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as? android.view.accessibility.AccessibilityManager
@@ -166,9 +156,6 @@ fun DashboardScreen(
         isImeEnabled = checkImeEnabled()
         isImeSelected = checkImeSelected()
         canOverlay = Settings.canDrawOverlays(context)
-        if (connectionPin.isEmpty()) {
-            connectionPin = ScreenCastService.ensurePin(context)
-        }
     }
 
     DisposableEffect(lifecycleOwner) {
@@ -184,7 +171,7 @@ fun DashboardScreen(
         }
     }
 
-    // Keep the cards honest: they refresh every 2 seconds so the state flips the
+    // Keep the setup rows honest: they refresh every 2 seconds so the state flips the
     // moment the user toggles the service in system settings - no app restart needed.
     LaunchedEffect(Unit) {
         while (true) {
@@ -198,67 +185,37 @@ fun DashboardScreen(
 
     Scaffold(
         contentWindowInsets = WindowInsets.safeDrawing,
-        containerColor = DarkObsidian,
+        containerColor = Bg,
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 100.dp),
+            columns = GridCells.Adaptive(minSize = 96.dp),
             contentPadding = PaddingValues(
-                start = 16.dp,
-                end = 16.dp,
-                top = innerPadding.calculateTopPadding() + 8.dp,
-                bottom = innerPadding.calculateBottomPadding() + 24.dp
+                start = 20.dp,
+                end = 20.dp,
+                top = innerPadding.calculateTopPadding() + 12.dp,
+                bottom = innerPadding.calculateBottomPadding() + 28.dp
             ),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.fillMaxSize()
         ) {
-            // 1. TOP HEADER & BRANDING
+            // 1. TOP BAR
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(text = "☀️", fontSize = 28.sp)
-                        Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "Sunshine Cast",
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextPrimary
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .background(
-                                            Brush.horizontalGradient(listOf(SunshineCyan, SunshinePurple)),
-                                            RoundedCornerShape(4.dp)
-                                        )
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = "HOST",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = Color.Black
-                                    )
-                                }
-                            }
-                            Text(
-                                text = "Remote Play for Chrome Browser",
-                                fontSize = 12.sp,
-                                color = TextMuted
-                            )
-                        }
-                    }
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "Sunshine Cast",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                         IconButton(
                             onClick = { showKeymapDialog = true },
                             modifier = Modifier
@@ -268,7 +225,7 @@ fun DashboardScreen(
                             Icon(
                                 imageVector = Icons.Default.Keyboard,
                                 contentDescription = "Keyboard mapping",
-                                tint = SunshineCyan
+                                tint = TextSecondary
                             )
                         }
                         IconButton(
@@ -287,167 +244,113 @@ fun DashboardScreen(
                 }
             }
 
-            // 2. HERO SERVER CONTROL & URL CARD
+            // 2. STREAM CARD - status, address, primary action
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Card(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = NavySlate),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(
-                            1.dp,
-                            if (serverStatus.isRunning) SunshineCyan.copy(alpha = 0.5f) else SlateBorder,
-                            RoundedCornerShape(20.dp)
-                        )
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = Surface),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(18.dp)) {
-                        // Status Row
+                    Column(modifier = Modifier.padding(20.dp)) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(10.dp)
-                                        .background(
-                                            if (serverStatus.isRunning) SunshineEmerald else SunshineAmber,
-                                            CircleShape
-                                        )
-                                )
-                                Text(
-                                    text = if (serverStatus.isRunning) "STREAMING ACTIVE" else "SERVER OFFLINE",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 0.5.sp,
-                                    color = if (serverStatus.isRunning) SunshineEmerald else SunshineAmber
-                                )
-                            }
-
-                            if (serverStatus.isRunning) {
-                                Box(
-                                    modifier = Modifier
-                                        .background(SunshineCyan.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                                ) {
-                                    Text(
-                                        text = "${serverStatus.clientCount} Connected",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = SunshineCyan
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .background(
+                                        if (serverStatus.isRunning) StatusOk else TextMuted,
+                                        CircleShape
                                     )
-                                }
+                            )
+                            Text(
+                                text = if (serverStatus.isRunning) "Streaming" else "Ready",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            if (serverStatus.isRunning && serverStatus.clientCount > 0) {
+                                Text(
+                                    text = "· ${serverStatus.clientCount} client" +
+                                            (if (serverStatus.clientCount > 1) "s" else ""),
+                                    fontSize = 13.sp,
+                                    color = TextSecondary
+                                )
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
 
                         if (serverStatus.isRunning) {
-                            // URL Broadcast Display
-                            Text(
-                                text = "CHROME BROWSER URL",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextMuted
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-
+                            // Address row
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0xFF0D1424))
-                                    .border(1.dp, Color(0xFF1E2D48), RoundedCornerShape(12.dp))
-                                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(SurfaceHigh)
+                                    .padding(horizontal = 14.dp, vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
                                     text = serverStatus.serverUrl,
                                     fontFamily = FontFamily.Monospace,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = SunshineCyan
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = TextPrimary,
+                                    maxLines = 1,
+                                    modifier = Modifier.weight(1f)
                                 )
-
-                                Row {
-                                    IconButton(
-                                        onClick = {
-                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                            val clip = ClipData.newPlainText("Sunshine URL", serverStatus.serverUrl)
-                                            clipboard.setPrimaryClip(clip)
-                                            Toast.makeText(context, "URL copied to clipboard!", Toast.LENGTH_SHORT).show()
-                                        },
-                                        modifier = Modifier.size(36.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.ContentCopy,
-                                            contentDescription = "Copy URL",
-                                            tint = SunshineCyan,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-
-                                    IconButton(
-                                        onClick = {
-                                            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(serverStatus.serverUrl))
-                                            context.startActivity(browserIntent)
-                                        },
-                                        modifier = Modifier.size(36.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.OpenInBrowser,
-                                            contentDescription = "Open in browser",
-                                            tint = TextSecondary,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
+                                IconButton(
+                                    onClick = {
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                        val clip = ClipData.newPlainText("Sunshine Cast address", serverStatus.serverUrl)
+                                        clipboard.setPrimaryClip(clip)
+                                        Toast.makeText(context, "Address copied", Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.size(38.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ContentCopy,
+                                        contentDescription = "Copy address",
+                                        tint = TextSecondary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                IconButton(
+                                    onClick = {
+                                        val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(serverStatus.serverUrl))
+                                        context.startActivity(browserIntent)
+                                    },
+                                    modifier = Modifier.size(38.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.OpenInBrowser,
+                                        contentDescription = "Open in browser",
+                                        tint = TextSecondary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
 
-                            // Telemetry Grid
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                MetricPill(
-                                    label = "FPS",
-                                    value = "${streamConfig.fps}",
-                                    color = SunshineEmerald,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                MetricPill(
-                                    label = "Target",
-                                    value = streamConfig.resolutionLabel().split(" ")[0],
-                                    color = SunshineCyan,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                MetricPill(
-                                    label = "Bitrate",
-                                    value = "${streamConfig.bitrateMbps}M",
-                                    color = SunshinePurple,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        } else {
-                            // Instructional Banner when stopped
                             Text(
-                                text = "Open Chrome on your laptop, go to your phone's address, and play games with hardware encoding & laptop keyboard controls.",
+                                text = "${streamConfig.width} × ${streamConfig.height} · " +
+                                        "${streamConfig.fps} fps · ${streamConfig.bitrateMbps} Mbps",
+                                fontSize = 12.sp,
+                                color = TextMuted
+                            )
+                        } else {
+                            Text(
+                                text = "Stream this phone to any browser on your Wi-Fi.",
                                 fontSize = 13.sp,
-                                color = TextSecondary,
-                                lineHeight = 18.sp
+                                color = TextSecondary
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(20.dp))
 
-                        // START / STOP BUTTON
                         Button(
                             onClick = {
                                 if (serverStatus.isRunning) {
@@ -457,347 +360,145 @@ fun DashboardScreen(
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (serverStatus.isRunning) Color(0xFFD32F2F) else SunshineCyan
+                                containerColor = if (serverStatus.isRunning) SurfaceHigh else Accent,
+                                contentColor = if (serverStatus.isRunning) TextPrimary else OnAccent
                             ),
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(14.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(48.dp)
+                                .height(52.dp)
                                 .testTag("btn_toggle_server")
                         ) {
                             Icon(
                                 imageVector = if (serverStatus.isRunning) Icons.Default.Stop else Icons.Default.PlayArrow,
                                 contentDescription = null,
-                                tint = if (serverStatus.isRunning) Color.White else Color.Black
+                                tint = if (serverStatus.isRunning) StatusErr else OnAccent,
+                                modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = if (serverStatus.isRunning) "STOP STREAMING" else "START REMOTE PLAY",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = if (serverStatus.isRunning) Color.White else Color.Black
+                                text = if (serverStatus.isRunning) "Stop streaming" else "Start streaming",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 15.sp
                             )
                         }
                     }
                 }
             }
 
-            // 2.5. ACCESSIBILITY & REMOTE KEYBOARD PERMISSION CARD
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = NavySlateCard),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(
-                            1.dp,
-                            if (isAccessBound) SunshineEmerald.copy(alpha = 0.5f) else SunshineAmber.copy(alpha = 0.5f),
-                            RoundedCornerShape(16.dp)
+            // 3. SETUP - visible only while something actually needs attention
+            if (!isAccessBound || !isImeSelected || !canOverlay) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Column(modifier = Modifier.padding(top = 10.dp)) {
+                        Text(
+                            text = "Setup",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextSecondary,
+                            modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
                         )
-                ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                modifier = Modifier.weight(1f),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Text(
-                                    text = when {
-                                        isAccessBound -> "🎮"
-                                        isAccessEnabled -> "⚠️"
-                                        else -> "🔒"
-                                    },
-                                    fontSize = 22.sp
-                                )
-                                Column {
-                                    Text(
-                                        text = when {
-                                            isAccessBound -> "Remote Controls: ACTIVE"
-                                            isAccessEnabled -> "Remote Controls: DISCONNECTED"
-                                            else -> "Remote Controls: Required"
-                                        },
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        color = if (isAccessBound) SunshineEmerald else SunshineAmber
-                                    )
-                                    Text(
-                                        text = when {
-                                            isAccessBound ->
-                                                "Mouse, touches, holds & keyboard injection are live. Calibrate game buttons from the browser (F3)."
-                                            isAccessEnabled ->
-                                                "The toggle is ON but the service never connected (happens after app updates). " +
-                                                "Switch it OFF, then ON once in Settings > Accessibility > Sunshine Cast Controller."
-                                            else ->
-                                                "Turn on Sunshine Cast Controller in Accessibility Settings so laptop inputs can control games."
-                                        },
-                                        fontSize = 11.sp,
-                                        color = TextSecondary,
-                                        lineHeight = 15.sp,
-                                        modifier = Modifier.padding(top = 2.dp)
-                                    )
-                                }
-                            }
 
-                            if (!isAccessBound) {
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Button(
-                                    onClick = {
-                                        val intent = Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                        if (!isAccessBound) {
+                            SetupRow(
+                                icon = { tint ->
+                                    Icon(
+                                        imageVector = Icons.Outlined.SportsEsports,
+                                        contentDescription = null,
+                                        tint = tint,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                },
+                                title = "Remote controls",
+                                hint = if (isAccessEnabled)
+                                    "Toggle Sunshine Cast Controller off and on in Accessibility settings"
+                                else
+                                    "Enable Sunshine Cast Controller in Accessibility settings",
+                                action = "Enable",
+                                onAction = {
+                                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                    }
+                                    context.startActivity(intent)
+                                }
+                            )
+                        }
+
+                        if (!isImeSelected) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            SetupRow(
+                                icon = { tint ->
+                                    Icon(
+                                        imageVector = Icons.Default.Keyboard,
+                                        contentDescription = null,
+                                        tint = tint,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                },
+                                title = "Remote keyboard",
+                                hint = if (isImeEnabled)
+                                    "Select Sunshine Keyboard as the input method"
+                                else
+                                    "Optional - type into text fields from the laptop",
+                                action = if (isImeEnabled) "Select" else "Enable",
+                                onAction = {
+                                    if (!isImeEnabled) {
+                                        val intent = Intent(Settings.ACTION_INPUT_METHOD_SETTINGS).apply {
                                             flags = Intent.FLAG_ACTIVITY_NEW_TASK
                                         }
                                         context.startActivity(intent)
-                                    },
-                                    shape = RoundedCornerShape(10.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = SunshineAmber),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                                ) {
-                                    Text(
-                                        text = "Open Settings",
-                                        color = Color.Black,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp
-                                    )
-                                }
-                            }
-                        }
-
-                        // KDE Connect Remote Keyboard Sub-card
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFF0F1523))
-                                .padding(10.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    modifier = Modifier.weight(1f),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text("⌨️", fontSize = 16.sp)
-                                    Column {
-                                        Text(
-                                            text = when {
-                                                isImeSelected -> "Remote Keyboard: ACTIVE (laptop typing works)"
-                                                isImeEnabled -> "Remote Keyboard: enabled, not selected"
-                                                else -> "Remote Keyboard: Optional"
-                                            },
-                                            fontWeight = FontWeight.SemiBold,
-                                            fontSize = 12.sp,
-                                            color = if (isImeSelected) SunshineCyan else TextPrimary
-                                        )
-                                        Text(
-                                            text = when {
-                                                isImeSelected -> "Laptop keys type into focused text fields; games work without it."
-                                                isImeEnabled -> "Tap Select and pick Sunshine Remote Keyboard (switch back anytime from its bar)."
-                                                else -> "Optional: type with the whole laptop keyboard into text fields on the phone."
-                                            },
-                                            fontSize = 10.sp,
-                                            color = TextMuted
-                                        )
+                                    } else {
+                                        try {
+                                            val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+                                            imm.showInputMethodPicker()
+                                        } catch (_: Exception) {
+                                        }
                                     }
                                 }
-
-                                if (!isImeSelected) {
-                                    Button(
-                                        onClick = {
-                                            if (!isImeEnabled) {
-                                                val intent = Intent(android.provider.Settings.ACTION_INPUT_METHOD_SETTINGS).apply {
-                                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                                }
-                                                context.startActivity(intent)
-                                            } else {
-                                                try {
-                                                    val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
-                                                    imm.showInputMethodPicker()
-                                                } catch (_: Exception) {
-                                                }
-                                            }
-                                        },
-                                        shape = RoundedCornerShape(8.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = SunshineCyan.copy(alpha = 0.2f)),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                                    ) {
-                                        Text(
-                                            text = if (isImeEnabled) "Select" else "Setup",
-                                            color = SunshineCyan,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                            }
+                            )
                         }
 
-                        // CONNECTION PIN sub-card
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFF0F1523))
-                                .padding(10.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    modifier = Modifier.weight(1f),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text("🔐", fontSize = 16.sp)
-                                    Column {
-                                        Text(
-                                            text = "Connection PIN: " + connectionPin,
-                                            fontWeight = FontWeight.SemiBold,
-                                            fontSize = 12.sp,
-                                            color = SunshineCyan
-                                        )
-                                        Text(
-                                            text = "Enter once in the browser to connect. Keeps strangers on your Wi-Fi out.",
-                                            fontSize = 10.sp,
-                                            color = TextMuted
-                                        )
-                                    }
-                                }
-
-                                Button(
-                                    onClick = {
-                                        connectionPin = ScreenCastService.rotatePin(context)
-                                        Toast.makeText(context, "PIN updated - browsers will ask for it again", Toast.LENGTH_SHORT).show()
-                                    },
-                                    shape = RoundedCornerShape(8.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = SunshineCyan.copy(alpha = 0.2f)),
-                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                                ) {
-                                    Text("New", color = SunshineCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-
-                        // OVERLAY PERMISSION sub-card (on-screen remote input feedback)
                         if (!canOverlay) {
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(Color(0xFF0F1523))
-                                    .padding(10.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column {
-                                        Text(
-                                            text = "On-screen input feedback: disabled",
-                                            fontWeight = FontWeight.SemiBold,
-                                            fontSize = 12.sp,
-                                            color = SunshineAmber
-                                        )
-                                        Text(
-                                            text = "Allow 'Display over other apps' to see remote key & touch indicators while gaming.",
-                                            fontSize = 10.sp,
-                                            color = TextMuted
-                                        )
-                                    }
-                                    Button(
-                                        onClick = {
-                                            val intent = Intent(
-                                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                                Uri.parse("package:" + context.packageName)
-                                            ).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK }
-                                            context.startActivity(intent)
-                                        },
-                                        shape = RoundedCornerShape(8.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = SunshineAmber.copy(alpha = 0.2f)),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                                    ) {
-                                        Text("Allow", color = SunshineAmber, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            SetupRow(
+                                icon = { tint ->
+                                    Icon(
+                                        imageVector = Icons.Outlined.Layers,
+                                        contentDescription = null,
+                                        tint = tint,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                },
+                                title = "Touch feedback",
+                                hint = "Optional - show input indicators while gaming",
+                                action = "Allow",
+                                onAction = {
+                                    val intent = Intent(
+                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                        Uri.parse("package:" + context.packageName)
+                                    ).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK }
+                                    context.startActivity(intent)
                                 }
-                            }
+                            )
                         }
                     }
                 }
             }
 
-            // 3. LAPTOP REAL ESTATE & SCALING INFO CHIP
+            // 4. LIBRARY HEADER, SEARCH, FILTERS
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0xFF141D2D))
-                        .border(1.dp, Color(0xFF22304A), RoundedCornerShape(14.dp))
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Laptop Screen Real Estate: ${streamConfig.resolutionLabel()}",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = SunshineCyan
-                        )
-                        Text(
-                            text = "Browser client supports 'Fill Screen' & 16:10 laptop aspect modes.",
-                            fontSize = 11.sp,
-                            color = TextMuted,
-                            modifier = Modifier.padding(top = 2.dp)
-                        )
-                    }
-
-                    Button(
-                        onClick = { showConfigDialog = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E2D48)),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        modifier = Modifier.testTag("btn_adjust_scaling")
-                    ) {
-                        Text(
-                            text = "Adjust",
-                            fontSize = 12.sp,
-                            color = SunshineCyan,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-            }
-
-            // 4. GAME & EMULATOR LAUNCHER SECTION (SUNSHINE STYLE)
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Column(modifier = Modifier.padding(top = 6.dp)) {
+                Column(modifier = Modifier.padding(top = 18.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "GAME & EMULATOR LIBRARY",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextMuted,
-                            letterSpacing = 0.5.sp
+                            text = "Games",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextSecondary,
+                            modifier = Modifier.padding(start = 4.dp)
                         )
-
                         IconButton(
                             onClick = { viewModel.loadApps() },
                             modifier = Modifier.size(32.dp)
@@ -805,52 +506,18 @@ fun DashboardScreen(
                             Icon(
                                 imageVector = Icons.Default.Refresh,
                                 contentDescription = "Refresh apps",
-                                tint = TextSecondary,
+                                tint = TextMuted,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Category Tabs
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        listOf("All", "Emulators", "Games").forEach { cat ->
-                            val isSelected = selectedCategory == cat
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(
-                                        if (isSelected) SunshineCyan.copy(alpha = 0.2f) else Color(0xFF141D2D)
-                                    )
-                                    .border(
-                                        1.dp,
-                                        if (isSelected) SunshineCyan else Color(0xFF22304A),
-                                        RoundedCornerShape(20.dp)
-                                    )
-                                    .clickable { viewModel.setSelectedCategory(cat) }
-                                    .padding(horizontal = 14.dp, vertical = 6.dp)
-                            ) {
-                                Text(
-                                    text = cat,
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSelected) SunshineCyan else TextSecondary
-                                )
-                            }
-                        }
-                    }
-
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // Search Field
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { viewModel.setSearchQuery(it) },
-                        placeholder = { Text("Search installed games & emulators...", fontSize = 13.sp, color = TextMuted) },
+                        placeholder = { Text("Search games", fontSize = 13.sp, color = TextMuted) },
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Default.Search,
@@ -861,18 +528,52 @@ fun DashboardScreen(
                         },
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = SunshineCyan,
-                            unfocusedBorderColor = Color(0xFF22304A),
-                            focusedContainerColor = NavySlate,
-                            unfocusedContainerColor = NavySlate,
+                            focusedBorderColor = Accent,
+                            unfocusedBorderColor = Hairline,
+                            focusedContainerColor = Surface,
+                            unfocusedContainerColor = Surface,
                             focusedTextColor = TextPrimary,
-                            unfocusedTextColor = TextPrimary
+                            unfocusedTextColor = TextPrimary,
+                            focusedPlaceholderColor = TextMuted,
+                            unfocusedPlaceholderColor = TextMuted
                         ),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("input_search_apps")
                     )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                        listOf("All", "Emulators", "Games").forEach { cat ->
+                            val isSelected = selectedCategory == cat
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .clickable { viewModel.setSelectedCategory(cat) }
+                                    .padding(vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = cat,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                                    color = if (isSelected) Accent else TextSecondary
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .width(20.dp)
+                                        .height(2.dp)
+                                        .background(
+                                            if (isSelected) Accent else Color.Transparent,
+                                            RoundedCornerShape(1.dp)
+                                        )
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -882,11 +583,11 @@ fun DashboardScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 32.dp),
+                            .padding(vertical = 36.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (searchQuery.isNotEmpty()) "No matching apps found." else "Scanning installed games and emulators...",
+                            text = if (searchQuery.isNotEmpty()) "No apps found" else "Scanning installed games…",
                             color = TextMuted,
                             fontSize = 13.sp
                         )
@@ -913,7 +614,6 @@ fun DashboardScreen(
             onSave = { newConfig ->
                 viewModel.updateConfig(newConfig)
                 showConfigDialog = false
-                Toast.makeText(context, "Settings updated!", Toast.LENGTH_SHORT).show()
             },
             onDismiss = { showConfigDialog = false }
         )
@@ -922,5 +622,56 @@ fun DashboardScreen(
     // Keymap Dialog
     if (showKeymapDialog) {
         KeymapGuideDialog(onDismiss = { showKeymapDialog = false })
+    }
+}
+
+@Composable
+private fun SetupRow(
+    icon: @Composable (Color) -> Unit,
+    title: String,
+    hint: String,
+    action: String,
+    onAction: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Surface),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            icon(TextSecondary)
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary
+                )
+                Text(
+                    text = hint,
+                    fontSize = 12.sp,
+                    color = TextMuted,
+                    modifier = Modifier.padding(top = 1.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            TextButton(
+                onClick = onAction,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = action,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Accent
+                )
+            }
+        }
     }
 }

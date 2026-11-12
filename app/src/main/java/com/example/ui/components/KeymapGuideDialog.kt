@@ -1,7 +1,6 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,39 +24,43 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.example.ui.theme.NavySlate
-import com.example.ui.theme.SunshineCyan
+import com.example.ui.theme.Accent
+import com.example.ui.theme.OnAccent
+import com.example.ui.theme.Surface
+import com.example.ui.theme.SurfaceHigh
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
+import com.example.ui.theme.TextSecondary
 
 data class KeyMappingItem(
-    val gameButton: String,
-    val laptopKey: String,
-    val description: String
+    val action: String,
+    val keys: String
 )
 
 @Composable
 fun KeymapGuideDialog(
     onDismiss: () -> Unit
 ) {
+    // Mirrors the actual mapping implemented by the browser client (KEY_CONTROLS).
     val mappings = listOf(
-        KeyMappingItem("D-Pad Up / Down / Left / Right", "W / S / A / D or Arrows", "Directional movement"),
-        KeyMappingItem("Cross (A) / Accept", "K or Space", "Main Action / Jump"),
-        KeyMappingItem("Circle (B) / Cancel", "L or Esc", "Back / Crouch"),
-        KeyMappingItem("Square (X) / Attack", "J", "Secondary Action / Attack"),
-        KeyMappingItem("Triangle (Y) / Special", "I", "Special Action / Menu"),
-        KeyMappingItem("L Trigger (Bumper)", "Q", "Left Shoulder"),
-        KeyMappingItem("R Trigger (Bumper)", "E", "Right Shoulder"),
-        KeyMappingItem("Start / Pause", "Enter", "Pause Game / Menu"),
-        KeyMappingItem("Select / Option", "Shift", "Select"),
-        KeyMappingItem("Mouse Click & Drag", "Left Mouse Button", "Direct touch swipe & tap")
+        KeyMappingItem("D-pad", "W A S D · Arrows"),
+        KeyMappingItem("Cross · A", "J"),
+        KeyMappingItem("Circle · B", "K"),
+        KeyMappingItem("Square · X", "U"),
+        KeyMappingItem("Triangle · Y", "I"),
+        KeyMappingItem("L1 / R1", "Q / E"),
+        KeyMappingItem("Start / Select", "Enter / Space"),
+        KeyMappingItem("Android back", "Esc"),
+        KeyMappingItem("Touch / drag", "Click & drag"),
+        KeyMappingItem("Scroll", "Mouse wheel"),
+        KeyMappingItem("Type text", "Any key"),
+        KeyMappingItem("Map game buttons", "F3")
     )
 
     Dialog(onDismissRequest = onDismiss) {
@@ -65,8 +68,7 @@ fun KeymapGuideDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
-                .background(NavySlate)
-                .border(1.dp, Color(0xFF22304A), RoundedCornerShape(20.dp))
+                .background(Surface)
                 .padding(20.dp)
         ) {
             Column {
@@ -76,10 +78,10 @@ fun KeymapGuideDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Laptop Control Mapping",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SunshineCyan
+                        text = "Keyboard & mouse",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary
                     )
                     IconButton(
                         onClick = onDismiss,
@@ -93,65 +95,60 @@ fun KeymapGuideDialog(
                     }
                 }
 
-                Text(
-                    text = "Controls mapped directly from Chrome to your Android games & emulators:",
-                    fontSize = 12.sp,
-                    color = TextMuted,
-                    modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
-                )
+                Spacer(modifier = Modifier.height(12.dp))
 
                 LazyColumn(
-                    modifier = Modifier.height(300.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.height(330.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     items(mappings) { item ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFF141D2D))
-                                .border(1.dp, Color(0xFF22304A), RoundedCornerShape(10.dp))
-                                .padding(10.dp),
+                                .clip(RoundedCornerShape(8.dp))
+                                .padding(horizontal = 8.dp, vertical = 7.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = item.gameButton,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = TextPrimary
-                                )
-                                Text(
-                                    text = item.description,
-                                    fontSize = 10.sp,
-                                    color = TextMuted
-                                )
-                            }
+                            Text(
+                                text = item.action,
+                                fontSize = 13.sp,
+                                color = TextSecondary
+                            )
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(Color(0xFF1E2C44))
-                                    .border(1.dp, SunshineCyan.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    .background(SurfaceHigh)
+                                    .padding(horizontal = 8.dp, vertical = 3.dp)
                             ) {
                                 Text(
-                                    text = item.laptopKey,
+                                    text = item.keys,
                                     fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
+                                    fontWeight = FontWeight.Medium,
                                     fontFamily = FontFamily.Monospace,
-                                    color = SunshineCyan
+                                    color = TextPrimary
                                 )
                             }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "F2 opens the game library · ` or F10 hides the browser UI",
+                    fontSize = 11.sp,
+                    color = TextMuted
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
 
                 Button(
                     onClick = onDismiss,
-                    colors = ButtonDefaults.buttonColors(containerColor = SunshineCyan),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Accent,
+                        contentColor = OnAccent
+                    ),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -159,8 +156,7 @@ fun KeymapGuideDialog(
                 ) {
                     Text(
                         text = "Close",
-                        color = Color.Black,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp
                     )
                 }
