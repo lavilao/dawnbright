@@ -108,9 +108,9 @@ class MainActivity : ComponentActivity() {
             }
 
             if (com.example.service.SunshineAccessibilityService.isServiceActive) {
-                Toast.makeText(this, "Sunshine Cast is live! Connect from Chrome on your laptop.", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "Sunshine Cast is live! Connect from Chrome on your laptop (PIN is on the dashboard).", Toast.LENGTH_LONG).show()
             } else {
-                Toast.makeText(this, "Sunshine Cast is live! Enable Accessibility in Settings to control games with laptop.", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "Sunshine Cast is live! Enable 'Sunshine Cast Controller' in Accessibility Settings to control games from the laptop.", Toast.LENGTH_LONG).show()
             }
         } catch (e: Exception) {
             Toast.makeText(this, "Failed to start service: ${e.message}", Toast.LENGTH_LONG).show()

@@ -176,6 +176,206 @@ object WebClientHtml {
       z-index: 99;
     }
 
+    /* INPUT UNAVAILABLE WARNING BANNER */
+    #input-warn-banner {
+      display: none;
+      background: rgba(255, 82, 82, 0.15);
+      border-bottom: 1px solid var(--danger);
+      color: var(--text);
+      padding: 6px 16px;
+      font-size: 0.8rem;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 98;
+    }
+
+    #input-warn-banner.active {
+      display: flex;
+    }
+
+    #input-warn-banner button {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 0 4px;
+    }
+
+    /* PIN AUTH MODAL */
+    #pin-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 1200;
+      display: none;
+    }
+
+    #pin-backdrop.active {
+      display: block;
+    }
+
+    #pin-modal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 16px;
+      padding: 24px;
+      width: 320px;
+      z-index: 1201;
+      display: none;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8);
+    }
+
+    #pin-modal.active {
+      display: block;
+    }
+
+    #pin-modal h3 {
+      margin-bottom: 8px;
+    }
+
+    #pin-modal p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    #pin-modal input {
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--surface-border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 1.2rem;
+      letter-spacing: 4px;
+      text-align: center;
+      outline: none;
+    }
+
+    #pin-modal input:focus {
+      border-color: var(--primary);
+    }
+
+    #pin-error {
+      color: var(--danger);
+      font-size: 0.75rem;
+      min-height: 18px;
+      margin: 6px 0;
+    }
+
+    #pin-submit {
+      width: 100%;
+      justify-content: center;
+    }
+
+    /* KEYMAP CALIBRATION PANEL */
+    #keymap-panel {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 300px;
+      max-width: 85%;
+      height: 100%;
+      background: rgba(18, 24, 38, 0.97);
+      border-left: 1px solid var(--surface-border);
+      z-index: 60;
+      padding: 20px;
+      display: none;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    #keymap-panel.active {
+      display: flex;
+    }
+
+    .keymap-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .keymap-sub {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+
+    .keymap-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .keymap-label {
+      flex: 1;
+      font-size: 0.8rem;
+    }
+
+    .keymap-pos {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      font-family: monospace;
+    }
+
+    #keymap-reset {
+      margin-top: 14px;
+    }
+
+    #calibration-hint {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 65;
+      display: none;
+      text-align: center;
+      background: rgba(9, 13, 22, 0.9);
+      border: 1px solid var(--primary);
+      padding: 14px 22px;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      pointer-events: none;
+    }
+
+    #calibration-hint.active {
+      display: block;
+    }
+
+    #map-dots {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 15;
+      pointer-events: none;
+      display: none;
+    }
+
+    .map-dot {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 229, 255, 0.25);
+      border: 1px solid var(--primary);
+      color: var(--primary);
+      font-size: 0.62rem;
+      padding: 2px 6px;
+      border-radius: 10px;
+      white-space: nowrap;
+    }
+
     /* IMMERSIVE CLEAN MODE (Hide all UI clutter while streaming games) */
     body.clean-mode header {
       display: none !important;
@@ -247,6 +447,7 @@ object WebClientHtml {
       background: #000;
       overflow: hidden;
       cursor: crosshair;
+      touch-action: none;
     }
 
     #stream-canvas,
@@ -569,6 +770,15 @@ object WebClientHtml {
     <button onclick="document.getElementById('insecure-http-banner').style.display='none'" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1rem; padding: 0 4px;">✕</button>
   </div>
 
+  <!-- INPUT UNAVAILABLE WARNING BANNER -->
+  <div id="input-warn-banner">
+    <span>
+      ⚠ <strong>Remote input is OFF on the phone.</strong>
+      Enable <strong>Sunshine Cast Controller</strong> under Settings &gt; Accessibility. If that toggle is already ON, switch it OFF then ON once (it goes stale after app updates).
+    </span>
+    <button onclick="document.getElementById('input-warn-banner').classList.remove('active')">✕</button>
+  </div>
+
   <!-- MAIN STREAM AREA -->
   <main>
     <div id="stream-container" class="scale-fit">
@@ -577,6 +787,7 @@ object WebClientHtml {
       <!-- MediaSource MSE Video element (works everywhere on plain HTTP on LAN) -->
       <video id="stream-video" autoplay playsinline muted style="display:none;"></video>
       <div id="touch-cursor"></div>
+      <div id="map-dots"></div>
 
       <!-- Live Performance HUD -->
       <div class="stream-hud">
@@ -589,6 +800,7 @@ object WebClientHtml {
       <!-- Quick Floating Control Dock -->
       <div class="quick-dock" id="quick-dock">
         <button id="dock-btn-clean" class="btn-icon">👁️ Clean Screen</button>
+        <button id="dock-btn-map" class="btn-icon" title="Calibrate game button positions (F3)">🗺 Map Keys</button>
         <button id="dock-btn-launcher" class="btn-icon">🎮 Switch Game</button>
         <button id="dock-btn-audio" class="btn-icon">🔊 Audio On</button>
         <button id="dock-btn-lock" class="btn-icon">🖱️ Lock Mouse</button>
@@ -666,6 +878,14 @@ object WebClientHtml {
         <td><span class="key-badge">F2</span></td>
         <td>Open / Close Game Launcher Library</td>
       </tr>
+      <tr>
+        <td><span class="key-badge">F3</span></td>
+        <td><strong>Calibrate Buttons:</strong> teach keyboard / gamepad keys where each on-screen game button is (press-and-hold!)</td>
+      </tr>
+      <tr>
+        <td><span class="key-badge">Mouse Wheel</span></td>
+        <td>Scroll / swipe the phone screen vertically</td>
+      </tr>
     </table>
     <div style="background: rgba(0, 229, 255, 0.08); border: 1px solid rgba(0, 229, 255, 0.2); border-radius: 8px; padding: 10px; font-size: 0.8rem; margin-bottom: 16px;">
       💡 <strong>Pro-Tip:</strong> Press <span class="key-badge">`</span> (Backtick) at any time to hide all buttons, headers, and HUDs while gaming!
@@ -673,6 +893,37 @@ object WebClientHtml {
     <div style="text-align: right;">
       <button id="btn-modal-ok" class="btn-icon" style="background: var(--primary); color: #000; font-weight: 700;">Got It!</button>
     </div>
+  </div>
+
+  <!-- KEYMAP CALIBRATION PANEL -->
+  <div id="keymap-panel">
+    <div class="keymap-head">
+      <h3>🎮 Button Map</h3>
+      <button id="keymap-close" class="btn-icon">✕</button>
+    </div>
+    <p class="keymap-sub">
+      Tap <strong>Set</strong>, then click that button ON the video stream. Keys press-and-HOLD at that spot (works for keyboard, gamepad &amp; on-screen taps). Escape cancels.
+    </p>
+    <div id="keymap-list"></div>
+    <button id="keymap-reset" class="btn-icon">Reset to defaults</button>
+  </div>
+
+  <!-- CALIBRATION HINT -->
+  <div id="calibration-hint">
+    <div>
+      <strong id="calibration-label">Button</strong><br/>
+      Now click the button position on the phone screen…
+    </div>
+  </div>
+
+  <!-- PIN AUTH MODAL -->
+  <div id="pin-backdrop"></div>
+  <div id="pin-modal">
+    <h3>🔐 Connection PIN required</h3>
+    <p>Enter the PIN shown on the Sunshine Cast dashboard of your phone (also visible in the streaming notification).</p>
+    <input id="pin-input" type="text" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="PIN" />
+    <div id="pin-error"></div>
+    <button id="pin-submit" class="btn-icon" style="background: var(--primary); color: #000; font-weight: 700;">Connect</button>
   </div>
 
   <script>
@@ -689,6 +940,11 @@ object WebClientHtml {
     let streamContainer = document.getElementById('stream-container');
     let touchCursor = document.getElementById('touch-cursor');
     let audioEnabled = true;
+
+    // --- CONNECTION PIN & AUTH STATE ---
+    let storedPin = localStorage.getItem('sc_pin') || '';
+    let authPending = false;
+    let pingTimerStarted = false;
 
     // Performance telemetry
     let frameCount = 0;
@@ -731,6 +987,7 @@ object WebClientHtml {
 
     scalingSelect.addEventListener('change', (e) => {
       applyScaling(e.target.value);
+      refreshMapDots();
     });
 
     // Load saved scaling mode
@@ -790,7 +1047,7 @@ object WebClientHtml {
     async function loadGames() {
       const grid = document.getElementById('games-grid');
       try {
-        const res = await fetch('/api/apps');
+        const res = await fetch('/api/apps?pin=' + encodeURIComponent(storedPin));
         const apps = await res.json();
         grid.innerHTML = '';
 
@@ -857,7 +1114,7 @@ object WebClientHtml {
         }));
       } else {
         try {
-          await fetch('/api/launch', {
+          await fetch('/api/launch?pin=' + encodeURIComponent(storedPin), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ packageName: pkg })
@@ -1070,6 +1327,343 @@ object WebClientHtml {
       document.getElementById('dock-btn-audio').innerText = audioEnabled ? '🔊 Audio On' : '🔇 Audio Off';
     });
 
+    // --- REMOTE INPUT: AUTH, KEYMAP CALIBRATION, TOUCH, WHEEL, GAMEPAD ---
+
+    function afterAuth() {
+      document.getElementById('connection-status').innerText = 'Streaming';
+      document.getElementById('status-indicator').style.background = 'var(--success)';
+      initAudio();
+      initDisplayEngine();
+      requestKeyframe();
+      startPingTimer();
+      setTimeout(refreshMapDots, 250); // video is visible now; position the dots
+    }
+
+    function updateInputStatus(msg) {
+      const banner = document.getElementById('input-warn-banner');
+      if (!banner) return;
+      if (msg && msg.accessibility) {
+        banner.classList.remove('active');
+      } else {
+        banner.classList.add('active');
+      }
+    }
+
+    // PIN modal
+    const pinModal = document.getElementById('pin-modal');
+    const pinBackdrop = document.getElementById('pin-backdrop');
+    const pinInput = document.getElementById('pin-input');
+    const pinError = document.getElementById('pin-error');
+
+    function showPinModal(message) {
+      authPending = true;
+      pinError.innerText = message || '';
+      pinBackdrop.classList.add('active');
+      pinModal.classList.add('active');
+      setTimeout(() => { pinInput.focus(); }, 60);
+    }
+
+    function submitPin() {
+      const val = (pinInput.value || '').trim();
+      if (!val) {
+        pinError.innerText = 'Enter the PIN shown on the phone';
+        return;
+      }
+      storedPin = val;
+      localStorage.setItem('sc_pin', val);
+      authPending = false;
+      pinModal.classList.remove('active');
+      pinBackdrop.classList.remove('active');
+      connectWebSocket();
+    }
+
+    document.getElementById('pin-submit').addEventListener('click', submitPin);
+    pinInput.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        submitPin();
+      }
+    });
+
+    // --- KEYMAP CALIBRATION (teach keys where on-screen buttons are) ---
+    const KEY_CONTROLS = [
+      { control: 'up', label: 'D-Pad Up', codes: ['KeyW', 'ArrowUp'] },
+      { control: 'down', label: 'D-Pad Down', codes: ['KeyS', 'ArrowDown'] },
+      { control: 'left', label: 'D-Pad Left', codes: ['KeyA', 'ArrowLeft'] },
+      { control: 'right', label: 'D-Pad Right', codes: ['KeyD', 'ArrowRight'] },
+      { control: 'a', label: 'Cross / A', codes: ['KeyJ'] },
+      { control: 'b', label: 'Circle / B', codes: ['KeyK'] },
+      { control: 'x', label: 'Square / X', codes: ['KeyU'] },
+      { control: 'y', label: 'Triangle / Y', codes: ['KeyI'] },
+      { control: 'l1', label: 'L Shoulder', codes: ['KeyQ'] },
+      { control: 'r1', label: 'R Shoulder', codes: ['KeyE'] },
+      { control: 'start', label: 'Start', codes: ['Enter'] },
+      { control: 'select', label: 'Select', codes: ['Space'] }
+    ];
+    const CONTROL_TO_CODES = {};
+    for (const kc of KEY_CONTROLS) {
+      for (const c of kc.codes) CONTROL_TO_CODES[c] = kc.control;
+    }
+
+    let keymap = {};
+    try { keymap = JSON.parse(localStorage.getItem('sc_keymap') || '{}'); } catch (e) { keymap = {}; }
+
+    const keymapPanel = document.getElementById('keymap-panel');
+    const calibHint = document.getElementById('calibration-hint');
+    let calibratingControl = null;
+
+    function getKeyTarget(code) {
+      const control = CONTROL_TO_CODES[code];
+      if (!control) return null;
+      const m = keymap[control];
+      if (m && typeof m.x === 'number' && typeof m.y === 'number') return m;
+      return null;
+    }
+
+    function saveKeymap() {
+      localStorage.setItem('sc_keymap', JSON.stringify(keymap));
+      refreshMapDots();
+    }
+
+    function sendKeyboard(code, key, isDown) {
+      if (isDown) heldKeys[code] = true; else delete heldKeys[code];
+      const msg = { type: 'keyboard', code: code, key: key, isDown: isDown };
+      const t = getKeyTarget(code);
+      if (t) {
+        msg.x = t.x;
+        msg.y = t.y;
+      }
+      sendInput(msg);
+    }
+
+    const heldKeys = {};
+
+    // Release everything if the window loses focus mid-press
+    window.addEventListener('blur', () => {
+      for (const code in heldKeys) {
+        sendInput({ type: 'keyboard', code: code, key: '', isDown: false });
+      }
+      for (const k of Object.keys(heldKeys)) delete heldKeys[k];
+      if (isMouseDown) {
+        isMouseDown = false;
+        sendInput({ type: 'mouse', action: 'up', x: 0, y: 0, button: 0 });
+      }
+    });
+
+    function toggleKeymapEditor(show) {
+      const want = typeof show === 'boolean' ? show : !keymapPanel.classList.contains('active');
+      if (want) {
+        buildKeymapList();
+        keymapPanel.classList.add('active');
+      } else {
+        keymapPanel.classList.remove('active');
+        calibratingControl = null;
+        calibHint.classList.remove('active');
+      }
+    }
+
+    function buildKeymapList() {
+      const list = document.getElementById('keymap-list');
+      list.innerHTML = '';
+      for (const kc of KEY_CONTROLS) {
+        const row = document.createElement('div');
+        row.className = 'keymap-row';
+        const mapped = keymap[kc.control];
+        const posLabel = mapped
+          ? ('(' + Math.round(mapped.x * 100) + '%, ' + Math.round(mapped.y * 100) + '%)')
+          : 'default';
+        const label = document.createElement('span');
+        label.className = 'keymap-label';
+        label.innerText = kc.label;
+        const pos = document.createElement('span');
+        pos.className = 'keymap-pos';
+        pos.innerText = posLabel;
+        const btn = document.createElement('button');
+        btn.className = 'btn-icon';
+        btn.innerText = 'Set';
+        btn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          calibratingControl = kc.control;
+          document.getElementById('calibration-label').innerText = kc.label;
+          calibHint.classList.add('active');
+        });
+        row.appendChild(label);
+        row.appendChild(pos);
+        row.appendChild(btn);
+        list.appendChild(row);
+      }
+    }
+
+    function captureCalibration(xNorm, yNorm) {
+      if (!calibratingControl) return;
+      keymap[calibratingControl] = { x: xNorm, y: yNorm };
+      saveKeymap();
+      calibratingControl = null;
+      calibHint.classList.remove('active');
+      buildKeymapList();
+    }
+
+    function resetKeymap() {
+      keymap = {};
+      saveKeymap();
+      buildKeymapList();
+    }
+
+    document.getElementById('keymap-close').addEventListener('click', () => toggleKeymapEditor(false));
+    document.getElementById('keymap-reset').addEventListener('click', resetKeymap);
+    document.getElementById('dock-btn-map').addEventListener('click', () => toggleKeymapEditor());
+
+    function refreshMapDots() {
+      const layer = document.getElementById('map-dots');
+      if (!layer) return;
+      layer.innerHTML = '';
+      const el = getActiveDisplay();
+      if (!el) { layer.style.display = 'none'; return; }
+      const cRect = streamContainer.getBoundingClientRect();
+      const vRect = el.getBoundingClientRect();
+      if (vRect.width <= 0 || vRect.height <= 0) {
+        // Display not visible yet (e.g. before the stream starts)
+        layer.style.display = 'none';
+        return;
+      }
+      let count = 0;
+      for (const kc of KEY_CONTROLS) {
+        const m = keymap[kc.control];
+        if (!m) continue;
+        const dot = document.createElement('div');
+        dot.className = 'map-dot';
+        dot.style.left = (vRect.left - cRect.left + m.x * vRect.width) + 'px';
+        dot.style.top = (vRect.top - cRect.top + m.y * vRect.height) + 'px';
+        dot.innerText = kc.label;
+        layer.appendChild(dot);
+        count++;
+      }
+      layer.style.display = count > 0 ? 'block' : 'none';
+    }
+
+    // --- MULTI-TOUCH BRIDGING (touchscreen laptops & tablets) ---
+    function touchNormalizedCoords(t) {
+      const el = getActiveDisplay();
+      const rect = el.getBoundingClientRect();
+      const x = Math.max(0, Math.min(1, (t.clientX - rect.left) / rect.width));
+      const y = Math.max(0, Math.min(1, (t.clientY - rect.top) / rect.height));
+      return { x, y };
+    }
+
+    streamContainer.addEventListener('touchstart', (e) => {
+      if (e.target.closest('#quick-dock') || e.target.closest('.stream-hud')) return;
+      e.preventDefault();
+      initAudio();
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches.item(i);
+        const c = touchNormalizedCoords(t);
+        sendInput({ type: 'touch', action: 'down', x: c.x, y: c.y, pointerId: t.identifier });
+        showTouchVisualizer(t.clientX, t.clientY);
+      }
+    }, { passive: false });
+
+    streamContainer.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches.item(i);
+        const c = touchNormalizedCoords(t);
+        sendInput({ type: 'touch', action: 'move', x: c.x, y: c.y, pointerId: t.identifier });
+        showTouchVisualizer(t.clientX, t.clientY);
+      }
+    }, { passive: false });
+
+    streamContainer.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches.item(i);
+        sendInput({ type: 'touch', action: 'up', x: 0, y: 0, pointerId: t.identifier });
+      }
+      if (e.touches.length === 0) hideTouchVisualizer();
+    }, { passive: false });
+
+    streamContainer.addEventListener('touchcancel', (e) => {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches.item(i);
+        sendInput({ type: 'touch', action: 'up', x: 0, y: 0, pointerId: t.identifier });
+      }
+    });
+
+    // --- MOUSE WHEEL / TRACKPAD SCROLL ---
+    let wheelAccum = 0;
+    let lastWheelSent = 0;
+    streamContainer.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      wheelAccum += e.deltaY;
+      const now = performance.now();
+      if (now - lastWheelSent > 40) {
+        const c = getNormalizedCoords(e);
+        sendInput({ type: 'mouse', action: 'wheel', x: c.x, y: c.y, deltaY: wheelAccum });
+        wheelAccum = 0;
+        lastWheelSent = now;
+      }
+    }, { passive: false });
+
+    // --- GAMEPAD BRIDGING (physical controllers connected to the laptop) ---
+    const GAMEPAD_BUTTONS = {
+      0: 'KeyJ', // A / Cross
+      1: 'KeyK', // B / Circle
+      2: 'KeyU', // X / Square
+      3: 'KeyI', // Y / Triangle
+      4: 'KeyQ', // L1
+      5: 'KeyE', // R1
+      8: 'Space', // Select
+      9: 'Enter', // Start
+      12: 'ArrowUp',
+      13: 'ArrowDown',
+      14: 'ArrowLeft',
+      15: 'ArrowRight'
+    };
+    const gamepadActive = {};
+    const gamepadAxes = {};
+
+    window.addEventListener('gamepadconnected', (e) => {
+      console.log('Gamepad connected:', e.gamepad.id);
+    });
+
+    function stickAxis(code, active) {
+      const was = gamepadAxes[code];
+      if (active && !was) sendKeyboard(code, '', true);
+      if (!active && was) sendKeyboard(code, '', false);
+      gamepadAxes[code] = active;
+    }
+
+    function pollGamepads() {
+      if (navigator.getGamepads) {
+        const pads = navigator.getGamepads();
+        for (let i = 0; i < pads.length; i++) {
+          const pad = pads[i];
+          if (!pad) continue;
+          for (const idx in GAMEPAD_BUTTONS) {
+            const code = GAMEPAD_BUTTONS[idx];
+            const pressed = !!(pad.buttons[idx] && pad.buttons[idx].pressed);
+            const was = gamepadActive[code];
+            if (pressed && !was) sendKeyboard(code, '', true);
+            if (!pressed && was) sendKeyboard(code, '', false);
+            gamepadActive[code] = pressed;
+          }
+          if (pad.axes && pad.axes.length >= 2) {
+            const ax = pad.axes[0];
+            const ay = pad.axes[1];
+            stickAxis('ArrowLeft', ax < -0.5);
+            stickAxis('ArrowRight', ax > 0.5);
+            stickAxis('ArrowUp', ay < -0.5);
+            stickAxis('ArrowDown', ay > 0.5);
+          }
+        }
+      }
+      requestAnimationFrame(pollGamepads);
+    }
+    requestAnimationFrame(pollGamepads);
+
+    // Initial calibration overlay render (declarations above are all resolved here)
+    refreshMapDots();
+
     // --- WEBSOCKET CONNECTION & PACKET DISPATCH ---
     function connectWebSocket() {
       const loc = window.location;
@@ -1081,16 +1675,14 @@ object WebClientHtml {
 
       ws.onopen = () => {
         isConnected = true;
-        document.getElementById('connection-status').innerText = 'Streaming';
-        document.getElementById('status-indicator').style.background = 'var(--success)';
-        initAudio();
-        initDisplayEngine();
-        requestKeyframe();
-        startPingTimer();
+        document.getElementById('connection-status').innerText = 'Authorizing...';
+        document.getElementById('status-indicator').style.background = 'var(--warning)';
+        ws.send(JSON.stringify({ type: 'auth', pin: storedPin }));
       };
 
       ws.onclose = () => {
         isConnected = false;
+        if (authPending) return; // Wait for PIN entry; submitPin() reconnects
         document.getElementById('connection-status').innerText = 'Disconnected';
         document.getElementById('status-indicator').style.background = 'var(--danger)';
         setTimeout(connectWebSocket, 1500); // Auto reconnect
@@ -1115,6 +1707,13 @@ object WebClientHtml {
         if (msg.type === 'pong') {
           currentRtt = Math.round(performance.now() - pingStartTime);
           document.getElementById('hud-latency').innerText = currentRtt + ' ms RTT';
+        } else if (msg.type === 'auth_ok') {
+          afterAuth();
+        } else if (msg.type === 'auth_failed') {
+          if (ws) { try { ws.close(); } catch (e) {} }
+          showPinModal('Wrong PIN - enter the one shown on the phone dashboard');
+        } else if (msg.type === 'input_status') {
+          updateInputStatus(msg);
         } else if (msg.type === 'status') {
           if (msg.activeApp) {
             document.getElementById('active-app-label').innerText = msg.activeApp;
@@ -1205,6 +1804,8 @@ object WebClientHtml {
     }
 
     function startPingTimer() {
+      if (pingTimerStarted) return;
+      pingTimerStarted = true;
       setInterval(() => {
         if (ws && ws.readyState === WebSocket.OPEN) {
           pingStartTime = performance.now();
@@ -1229,13 +1830,32 @@ object WebClientHtml {
       document.getElementById('hud-bitrate').innerText = currentBitrateMbps + ' Mbps';
     }, 1000);
 
-    // --- INPUT CONTROLS: LAPTOP KEYBOARD, MOUSE & TOUCH BRIDGING ---
+    // --- INPUT CONTROLS: KEYBOARD, MOUSE, TOUCH & POINTER LOCK ---
 
     function getActiveDisplay() {
       return (useWebCodecs && canvas.style.display !== 'none') ? canvas : videoElement;
     }
 
-    // Calculate normalized coordinates taking into account scaling mode
+    // Pointer-lock-aware coordinates: while locked, clientX/Y freeze, so we
+    // track a virtual position via movementX/Y instead.
+    let virtualMouseX = -1;
+    let virtualMouseY = -1;
+
+    function effectiveCoords(e) {
+      if (document.pointerLockElement) {
+        const el = getActiveDisplay();
+        const rect = el.getBoundingClientRect();
+        if (virtualMouseX < 0) {
+          virtualMouseX = (e.clientX - rect.left) / rect.width;
+          virtualMouseY = (e.clientY - rect.top) / rect.height;
+        }
+        virtualMouseX = Math.max(0, Math.min(1, virtualMouseX + (e.movementX || 0) / rect.width));
+        virtualMouseY = Math.max(0, Math.min(1, virtualMouseY + (e.movementY || 0) / rect.height));
+        return { x: virtualMouseX, y: virtualMouseY };
+      }
+      virtualMouseX = -1;
+      return getNormalizedCoords(e);
+    }
     function getNormalizedCoords(e) {
       const el = getActiveDisplay();
       const rect = el.getBoundingClientRect();
@@ -1248,9 +1868,16 @@ object WebClientHtml {
     let isMouseDown = false;
     streamContainer.addEventListener('mousedown', (e) => {
       if (e.target.closest('#quick-dock') || e.target.closest('.stream-hud') || e.target.id === 'clean-mode-floating-btn') return;
+      if (calibratingControl) {
+        // Key-map calibration: this click teaches where the button is
+        e.preventDefault();
+        const cal = getNormalizedCoords(e);
+        captureCalibration(cal.x, cal.y);
+        return;
+      }
       initAudio();
       isMouseDown = true;
-      const { x, y } = getNormalizedCoords(e);
+      const { x, y } = effectiveCoords(e);
       sendInput({
         type: 'mouse',
         action: 'down',
@@ -1264,7 +1891,7 @@ object WebClientHtml {
     window.addEventListener('mouseup', (e) => {
       if (isMouseDown) {
         isMouseDown = false;
-        const { x, y } = getNormalizedCoords(e);
+        const { x, y } = effectiveCoords(e);
         sendInput({
           type: 'mouse',
           action: 'up',
@@ -1278,7 +1905,7 @@ object WebClientHtml {
 
     streamContainer.addEventListener('mousemove', (e) => {
       if (e.target.closest('#quick-dock') || e.target.closest('.stream-hud') || e.target.id === 'clean-mode-floating-btn') return;
-      const { x, y } = getNormalizedCoords(e);
+      const { x, y } = effectiveCoords(e);
       if (isMouseDown) {
         sendInput({
           type: 'mouse',
@@ -1315,6 +1942,28 @@ object WebClientHtml {
     window.addEventListener('keydown', (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
 
+      // Ignore browser auto-repeat: the phone HOLDS the key until keyup
+      if (e.repeat) return;
+
+      // Ignore pure modifier keys (they are already reflected in e.key)
+      if (e.code.startsWith('Shift') || e.code.startsWith('Control') ||
+          e.code.startsWith('Alt') || e.code.startsWith('Meta') ||
+          e.code === 'CapsLock' || e.code === 'FnLock') return;
+
+      // F3 opens / closes the key-map calibration editor
+      if (e.code === 'F3') {
+        e.preventDefault();
+        toggleKeymapEditor();
+        return;
+      }
+
+      // Escape cancels a pending calibration instead of reaching the phone
+      if (e.code === 'Escape' && calibratingControl) {
+        calibratingControl = null;
+        calibHint.classList.remove('active');
+        return;
+      }
+
       // Toggle Clean Mode with Backquote (`) or F10
       if (e.code === 'Backquote' || e.code === 'F10') {
         e.preventDefault();
@@ -1342,13 +1991,9 @@ object WebClientHtml {
         return;
       }
 
-      // Send the keystroke to the phone (processed by KDE Connect Keyboard IME and Accessibility)
-      sendInput({
-        type: 'keyboard',
-        code: e.code,
-        key: e.key,
-        isDown: true
-      });
+      // Send the keystroke to the phone: IME typing / accessibility game
+      // mapping, with calibrated on-screen coordinates when the key-map has them
+      sendKeyboard(e.code, e.key, true);
 
       // Prevent scrolling on space / arrow keys during gameplay
       if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
@@ -1359,12 +2004,7 @@ object WebClientHtml {
     window.addEventListener('keyup', (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
 
-      sendInput({
-        type: 'keyboard',
-        code: e.code,
-        key: e.key,
-        isDown: false
-      });
+      sendKeyboard(e.code, e.key, false);
     });
 
     function sendInput(data) {

@@ -59,6 +59,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -80,7 +81,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.service.OverlayInputService
+import com.example.service.ScreenCastService
 import com.example.service.SunshineAccessibilityService
+import com.example.service.SunshineKeyboardService
 import com.example.ui.components.ConfigDialog
 import com.example.ui.components.GameCardItem
 import com.example.ui.components.KeymapGuideDialog
@@ -96,6 +99,7 @@ import com.example.ui.theme.SunshinePurple
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -115,11 +119,18 @@ fun DashboardScreen(
     var showKeymapDialog by remember { mutableStateOf(false) }
 
     val lifecycleOwner = LocalLifecycleOwner.current
-    var isAccessActive by remember { mutableStateOf(false) }
-    var isImeActive by remember { mutableStateOf(false) }
 
-    fun checkAccess(): Boolean {
-        if (SunshineAccessibilityService.isServiceActive) return true
+    // Real input status - "enabled in settings" is NOT the same as "service is bound".
+    // After an app update / force-stop the toggle can stay ON while the service is
+    // dead; the middle state below tells the user exactly what to do about it.
+    var isAccessBound by remember { mutableStateOf(false) }
+    var isAccessEnabled by remember { mutableStateOf(false) }
+    var isImeEnabled by remember { mutableStateOf(false) }
+    var isImeSelected by remember { mutableStateOf(false) }
+    var canOverlay by remember { mutableStateOf(true) }
+    var connectionPin by remember { mutableStateOf("") }
+
+    fun checkAccessEnabled(): Boolean {
         val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as? android.view.accessibility.AccessibilityManager
         if (am != null) {
             val enabledList = am.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
@@ -134,25 +145,54 @@ fun DashboardScreen(
         return enabled.contains(context.packageName)
     }
 
-    fun checkIme(): Boolean {
-        if (com.example.service.SunshineKeyboardService.isServiceActive) return true
+    fun checkImeEnabled(): Boolean {
         val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
         val enabledImes = imm?.enabledInputMethodList ?: emptyList()
         return enabledImes.any { it.packageName == context.packageName }
     }
 
+    fun checkImeSelected(): Boolean {
+        if (SunshineKeyboardService.isServiceActive) return true
+        val selected = Settings.Secure.getString(
+            context.contentResolver,
+            Settings.Secure.DEFAULT_INPUT_METHOD
+        ) ?: return false
+        return selected.contains(context.packageName)
+    }
+
+    fun refreshInputStates() {
+        isAccessBound = SunshineAccessibilityService.isServiceActive
+        isAccessEnabled = checkAccessEnabled()
+        isImeEnabled = checkImeEnabled()
+        isImeSelected = checkImeSelected()
+        canOverlay = Settings.canDrawOverlays(context)
+        if (connectionPin.isEmpty()) {
+            connectionPin = ScreenCastService.ensurePin(context)
+        }
+    }
+
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                isAccessActive = checkAccess()
-                isImeActive = checkIme()
+                refreshInputStates()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        isAccessActive = checkAccess()
-        isImeActive = checkIme()
+        refreshInputStates()
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    // Keep the cards honest: they refresh every 2 seconds so the state flips the
+    // moment the user toggles the service in system settings - no app restart needed.
+    LaunchedEffect(Unit) {
+        while (true) {
+            try {
+                refreshInputStates()
+            } catch (_: Exception) {
+            }
+            delay(2000)
         }
     }
 
@@ -451,7 +491,7 @@ fun DashboardScreen(
                         .fillMaxWidth()
                         .border(
                             1.dp,
-                            if (isAccessActive) SunshineEmerald.copy(alpha = 0.5f) else SunshineAmber.copy(alpha = 0.5f),
+                            if (isAccessBound) SunshineEmerald.copy(alpha = 0.5f) else SunshineAmber.copy(alpha = 0.5f),
                             RoundedCornerShape(16.dp)
                         )
                 ) {
@@ -466,19 +506,35 @@ fun DashboardScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                Text(if (isAccessActive) "🟢" else "⚠️", fontSize = 22.sp)
+                                Text(
+                                    text = when {
+                                        isAccessBound -> "🎮"
+                                        isAccessEnabled -> "⚠️"
+                                        else -> "🔒"
+                                    },
+                                    fontSize = 22.sp
+                                )
                                 Column {
                                     Text(
-                                        text = if (isAccessActive) "Remote Mouse & Touch Controls: ACTIVE" else "Remote Control: Inactive",
+                                        text = when {
+                                            isAccessBound -> "Remote Controls: ACTIVE"
+                                            isAccessEnabled -> "Remote Controls: DISCONNECTED"
+                                            else -> "Remote Controls: Required"
+                                        },
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp,
-                                        color = if (isAccessActive) SunshineEmerald else SunshineAmber
+                                        color = if (isAccessBound) SunshineEmerald else SunshineAmber
                                     )
                                     Text(
-                                        text = if (isAccessActive)
-                                            "Laptop mouse clicks, touches & keys are injected directly into games."
-                                        else
-                                            "Turn on Sunshine Cast in Accessibility Settings so laptop inputs can control games.",
+                                        text = when {
+                                            isAccessBound ->
+                                                "Mouse, touches, holds & keyboard injection are live. Calibrate game buttons from the browser (F3)."
+                                            isAccessEnabled ->
+                                                "The toggle is ON but the service never connected (happens after app updates). " +
+                                                "Switch it OFF, then ON once in Settings > Accessibility > Sunshine Cast Controller."
+                                            else ->
+                                                "Turn on Sunshine Cast Controller in Accessibility Settings so laptop inputs can control games."
+                                        },
                                         fontSize = 11.sp,
                                         color = TextSecondary,
                                         lineHeight = 15.sp,
@@ -487,7 +543,7 @@ fun DashboardScreen(
                                 }
                             }
 
-                            if (!isAccessActive) {
+                            if (!isAccessBound) {
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Button(
                                     onClick = {
@@ -501,7 +557,7 @@ fun DashboardScreen(
                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                                 ) {
                                     Text(
-                                        text = "Enable",
+                                        text = "Open Settings",
                                         color = Color.Black,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.sp
@@ -532,32 +588,148 @@ fun DashboardScreen(
                                     Text("⌨️", fontSize = 16.sp)
                                     Column {
                                         Text(
-                                            text = if (isImeActive) "KDE Connect Remote Keyboard: Active" else "KDE Connect Keyboard: Optional",
+                                            text = when {
+                                                isImeSelected -> "Remote Keyboard: ACTIVE (laptop typing works)"
+                                                isImeEnabled -> "Remote Keyboard: enabled, not selected"
+                                                else -> "Remote Keyboard: Optional"
+                                            },
                                             fontWeight = FontWeight.SemiBold,
                                             fontSize = 12.sp,
-                                            color = if (isImeActive) SunshineCyan else TextPrimary
+                                            color = if (isImeSelected) SunshineCyan else TextPrimary
                                         )
                                         Text(
-                                            text = "Send the entire laptop keyboard (all keys, words & game keys) to phone.",
+                                            text = when {
+                                                isImeSelected -> "Laptop keys type into focused text fields; games work without it."
+                                                isImeEnabled -> "Tap Select and pick Sunshine Remote Keyboard (switch back anytime from its bar)."
+                                                else -> "Optional: type with the whole laptop keyboard into text fields on the phone."
+                                            },
                                             fontSize = 10.sp,
                                             color = TextMuted
                                         )
                                     }
                                 }
 
-                                if (!isImeActive) {
+                                if (!isImeSelected) {
                                     Button(
                                         onClick = {
-                                            val intent = Intent(android.provider.Settings.ACTION_INPUT_METHOD_SETTINGS).apply {
-                                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                            if (!isImeEnabled) {
+                                                val intent = Intent(android.provider.Settings.ACTION_INPUT_METHOD_SETTINGS).apply {
+                                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                                }
+                                                context.startActivity(intent)
+                                            } else {
+                                                try {
+                                                    val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+                                                    imm.showInputMethodPicker()
+                                                } catch (_: Exception) {
+                                                }
                                             }
-                                            context.startActivity(intent)
                                         },
                                         shape = RoundedCornerShape(8.dp),
                                         colors = ButtonDefaults.buttonColors(containerColor = SunshineCyan.copy(alpha = 0.2f)),
                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                                     ) {
-                                        Text("Setup", color = SunshineCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Text(
+                                            text = if (isImeEnabled) "Select" else "Setup",
+                                            color = SunshineCyan,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // CONNECTION PIN sub-card
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFF0F1523))
+                                .padding(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text("🔐", fontSize = 16.sp)
+                                    Column {
+                                        Text(
+                                            text = "Connection PIN: " + connectionPin,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 12.sp,
+                                            color = SunshineCyan
+                                        )
+                                        Text(
+                                            text = "Enter once in the browser to connect. Keeps strangers on your Wi-Fi out.",
+                                            fontSize = 10.sp,
+                                            color = TextMuted
+                                        )
+                                    }
+                                }
+
+                                Button(
+                                    onClick = {
+                                        connectionPin = ScreenCastService.rotatePin(context)
+                                        Toast.makeText(context, "PIN updated - browsers will ask for it again", Toast.LENGTH_SHORT).show()
+                                    },
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = SunshineCyan.copy(alpha = 0.2f)),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Text("New", color = SunshineCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+
+                        // OVERLAY PERMISSION sub-card (on-screen remote input feedback)
+                        if (!canOverlay) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color(0xFF0F1523))
+                                    .padding(10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = "On-screen input feedback: disabled",
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 12.sp,
+                                            color = SunshineAmber
+                                        )
+                                        Text(
+                                            text = "Allow 'Display over other apps' to see remote key & touch indicators while gaming.",
+                                            fontSize = 10.sp,
+                                            color = TextMuted
+                                        )
+                                    }
+                                    Button(
+                                        onClick = {
+                                            val intent = Intent(
+                                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                                Uri.parse("package:" + context.packageName)
+                                            ).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK }
+                                            context.startActivity(intent)
+                                        },
+                                        shape = RoundedCornerShape(8.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = SunshineAmber.copy(alpha = 0.2f)),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                    ) {
+                                        Text("Allow", color = SunshineAmber, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }

@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.net.Inet4Address
 import java.net.NetworkInterface
+import kotlin.random.Random
 
 class ScreenCastService : Service() {
 
@@ -40,6 +41,8 @@ class ScreenCastService : Service() {
         private const val TAG = "ScreenCastService"
         private const val NOTIFICATION_ID = 4040
         private const val CHANNEL_ID = "sunshine_cast_channel"
+        private const val PREFS_NAME = "sunshine_cast_prefs"
+        private const val PREF_PIN = "auth_pin"
 
         const val ACTION_START = "com.example.action.START"
         const val ACTION_STOP = "com.example.action.STOP"
@@ -51,6 +54,33 @@ class ScreenCastService : Service() {
         val serverStatus: StateFlow<ServerStatus> = _serverStatus.asStateFlow()
 
         var currentConfig: StreamConfig = StreamConfig()
+
+        /**
+         * Connection PIN required by browser clients (shown on the dashboard).
+         * Empty means auth is disabled (not the default - a PIN is generated once
+         * and persisted so every person on the LAN can't watch / control the screen).
+         */
+        var connectionPin: String = ""
+            private set
+
+        fun ensurePin(context: Context): String {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            var pin = prefs.getString(PREF_PIN, null)
+            if (pin.isNullOrEmpty()) {
+                pin = Random.nextInt(1000, 10000).toString()
+                prefs.edit().putString(PREF_PIN, pin).apply()
+            }
+            connectionPin = pin
+            return pin
+        }
+
+        fun rotatePin(context: Context): String {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val pin = Random.nextInt(1000, 10000).toString()
+            prefs.edit().putString(PREF_PIN, pin).apply()
+            connectionPin = pin
+            return pin
+        }
     }
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -66,6 +96,7 @@ class ScreenCastService : Service() {
     override fun onCreate() {
         super.onCreate()
         appRepo = AppRepository(this)
+        ensurePin(this)
         createNotificationChannel()
 
         serviceScope.launch(Dispatchers.IO) {
@@ -121,7 +152,7 @@ class ScreenCastService : Service() {
             val ip = getLocalIpAddress()
             val notification = NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("Sunshine Cast Server")
-                .setContentText("Remote Play active at http://$ip:${currentConfig.port}")
+                .setContentText("http://" + ip + ":" + currentConfig.port + "  |  PIN " + connectionPin)
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setOngoing(true)
                 .setContentIntent(pendingIntent)
@@ -179,12 +210,20 @@ class ScreenCastService : Service() {
                     getStatusProvider = { _serverStatus.value },
                     onInputReceived = { event -> handleRemoteInput(event) },
                     onKeyFrameRequested = { videoEncoder?.requestKeyFrame() },
+                    getPin = { connectionPin },
                     context = this
                 ).apply {
                     start(serviceScope)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error starting HttpWebServer: ${e.message}", e)
+            }
+
+            // Report real input-injection availability to connected clients whenever
+            // the accessibility service binds / unbinds (toggle dance after app updates).
+            SunshineAccessibilityService.onBindingChanged = { bound ->
+                Log.i(TAG, "Accessibility binding changed: bound=" + bound)
+                webServer?.broadcastInputStatus()
             }
 
             // 2. Initialize and start Hardware H.264 Video Encoder
@@ -240,18 +279,33 @@ class ScreenCastService : Service() {
             is RemoteInputEvent.Keyboard -> {
                 val stateText = if (event.isDown) "▼ ${event.code}" else "▲ ${event.code}"
                 OverlayInputService.updateKeyDisplay(stateText)
-                val handledByIme = SunshineKeyboardService.sendRemoteKey(event.code, event.key, event.isDown)
-                if (!handledByIme) {
-                    SunshineAccessibilityService.instance?.injectKey(event.code, event.key, event.isDown)
+                if (event.hasTarget) {
+                    // Calibrated on-screen button: press-and-HOLD at the given position
+                    SunshineAccessibilityService.instance?.handleKeyButton(event.code, event.x, event.y, event.isDown)
+                } else {
+                    // Text typing when the remote IME is selected & a field is focused,
+                    // otherwise fall through to system keys / game HUD mapping.
+                    val handledByIme = SunshineKeyboardService.sendRemoteKey(event.code, event.key, event.isDown)
+                    if (!handledByIme) {
+                        SunshineAccessibilityService.instance?.injectKey(event.code, event.key, event.isDown)
+                    }
                 }
             }
             is RemoteInputEvent.Mouse -> {
                 OverlayInputService.showTouchRipple(event.x, event.y)
-                SunshineAccessibilityService.instance?.injectMouse(event.x, event.y, event.type)
+                if (event.type == "wheel") {
+                    SunshineAccessibilityService.instance?.injectWheel(event.x, event.y, event.deltaY)
+                } else {
+                    SunshineAccessibilityService.instance?.injectMouse(event.x, event.y, event.type)
+                }
             }
             is RemoteInputEvent.Touch -> {
                 OverlayInputService.showTouchRipple(event.x, event.y)
-                SunshineAccessibilityService.instance?.injectTap(event.x, event.y)
+                when (event.type) {
+                    "down" -> SunshineAccessibilityService.instance?.beginTouch(event.pointerId, event.x, event.y)
+                    "move" -> SunshineAccessibilityService.instance?.moveTouch(event.pointerId, event.x, event.y)
+                    "up" -> SunshineAccessibilityService.instance?.endTouch(event.pointerId)
+                }
             }
             is RemoteInputEvent.StreamControl -> {
                 if (event.action == "request_keyframe") {
@@ -274,6 +328,7 @@ class ScreenCastService : Service() {
 
     private fun stopStreaming() {
         Log.i(TAG, "Stopping streaming components")
+        SunshineAccessibilityService.onBindingChanged = null
         try { videoEncoder?.stop() } catch (e: Exception) { Log.w(TAG, e) }
         videoEncoder = null
 

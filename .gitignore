@@ -16,3 +16,6 @@
 local.properties
 .env
 debug.keystore
+
+# CI build outputs should never be committed
+release-artifacts/
