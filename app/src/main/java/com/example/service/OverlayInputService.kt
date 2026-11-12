@@ -5,8 +5,10 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.Point
 import android.os.Build
 import android.os.IBinder
+import android.os.SystemClock
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
@@ -132,11 +134,34 @@ class OverlayInputService : Service() {
         }
     }
 
+    private var lastRippleAt = 0L
+
     private fun displayTouch(xNorm: Float, yNorm: Float) {
+        // One relayout per input event (up to 120/s during a drag) janks the phone's
+        // main thread - and the encoder pipeline with it. Throttle to a rate that
+        // still looks live.
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastRippleAt < 80L) return
+        lastRippleAt = now
         touchIndicator?.post {
-            val dm = resources.displayMetrics
-            val px = (xNorm * dm.widthPixels).toInt() - 24
-            val py = (yNorm * dm.heightPixels).toInt() - 24
+            val size = Point()
+            try {
+                @Suppress("DEPRECATION")
+                (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.getRealSize(size)
+            } catch (_: Exception) {
+            }
+            val screenW = if (size.x > 0) size.x else resources.displayMetrics.widthPixels
+            val screenH = if (size.y > 0) size.y else resources.displayMetrics.heightPixels
+            // Web clients send frame-normalized coords; run them through the same
+            // letterbox correction the injection uses, so the ripple shows where the
+            // remote finger actually lands.
+            val p = SunshineAccessibilityService.mapFrameNormToScreen(
+                xNorm, yNorm, screenW, screenH,
+                SunshineAccessibilityService.mirrorFrameWidth,
+                SunshineAccessibilityService.mirrorFrameHeight
+            )
+            val px = p.first.toInt() - 24
+            val py = p.second.toInt() - 24
 
             val lp = touchIndicator?.layoutParams as? FrameLayout.LayoutParams
             if (lp != null) {

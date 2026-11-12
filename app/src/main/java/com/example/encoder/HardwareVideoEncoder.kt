@@ -2,6 +2,7 @@ package com.example.encoder
 
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
+import android.graphics.Point
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
@@ -37,15 +38,42 @@ class HardwareVideoEncoder(
     private var encodingJob: Job? = null
     private val isRunning = AtomicBoolean(false)
 
+    /** Effective H.264 picture size actually configured (aspect-matched to the screen). */
+    @Volatile
+    var frameWidth: Int = 0
+        private set
+
+    @Volatile
+    var frameHeight: Int = 0
+        private set
+
     private var cachedConfigHeader: ByteArray? = null
 
-    fun start(mediaProjection: MediaProjection, scope: CoroutineScope) {
+    fun start(mediaProjection: MediaProjection, scope: CoroutineScope, realDisplay: Point? = null) {
         if (isRunning.getAndSet(true)) return
 
         try {
-            // Ensure width and height are even numbers (required by H.264 codecs)
-            val encWidth = ((config.width / 2) * 2).coerceAtLeast(320)
-            val encHeight = ((config.height / 2) * 2).coerceAtLeast(240)
+            // Resolution budget from the config, then match the physical screen
+            // aspect so AUTO_MIRROR does not letterbox the content into the frame.
+            // Letterboxing wastes bitrate on black bars AND breaks naive
+            // coordinate mapping (see SunshineAccessibilityService.mapFrameNormToScreen).
+            val maxW = ((config.width / 2) * 2).coerceAtLeast(320)
+            val maxH = ((config.height / 2) * 2).coerceAtLeast(240)
+            val encWidth: Int
+            val encHeight: Int
+            if (realDisplay != null && realDisplay.x > 0 && realDisplay.y > 0) {
+                val scale = minOf(
+                    maxW.toFloat() / realDisplay.x,
+                    maxH.toFloat() / realDisplay.y
+                )
+                encWidth = ((realDisplay.x * scale).toInt() / 2 * 2).coerceAtLeast(320)
+                encHeight = ((realDisplay.y * scale).toInt() / 2 * 2).coerceAtLeast(240)
+            } else {
+                encWidth = maxW
+                encHeight = maxH
+            }
+            frameWidth = encWidth
+            frameHeight = encHeight
 
             val format = MediaFormat.createVideoFormat(MIME_TYPE, encWidth, encHeight).apply {
                 setInteger(
@@ -77,6 +105,7 @@ class HardwareVideoEncoder(
                 try {
                     setInteger(MediaFormat.KEY_PRIORITY, 0)
                     setInteger("latency", 0)
+                    setInteger(MediaFormat.KEY_OPERATING_RATE, config.fps)
                 } catch (_: Exception) {}
             }
 

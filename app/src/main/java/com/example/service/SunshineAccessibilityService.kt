@@ -84,6 +84,53 @@ class SunshineAccessibilityService : AccessibilityService() {
             "Enter" to Pair(0.60f, 0.90f), // Start
             "Space" to Pair(0.40f, 0.90f)  // Select
         )
+
+        // ------------------------------------------------------------------
+        // Mirror frame geometry (set by ScreenCastService when the encoder starts)
+        // ------------------------------------------------------------------
+
+        /** H.264 picture size (the VirtualDisplay dimensions). */
+        @Volatile
+        var mirrorFrameWidth: Int = 0
+            private set
+
+        @Volatile
+        var mirrorFrameHeight: Int = 0
+            private set
+
+        /** Must be called whenever the mirrored frame size changes; 0 resets to identity mapping. */
+        fun setMirrorFrameSize(width: Int, height: Int) {
+            mirrorFrameWidth = width.coerceAtLeast(0)
+            mirrorFrameHeight = height.coerceAtLeast(0)
+        }
+
+        /**
+         * Maps coordinates normalized over the *mirrored frame* to physical screen
+         * pixels. AUTO_MIRROR letterboxes the screen content inside the frame whenever
+         * the aspects differ (20:9 screen vs 16:9 frame, rotation mid-session...), so
+         * frame fractions must pass through the letterbox math before being scaled by
+         * the real display size. Without this, injected touches drift toward the
+         * center and distort near the edges (analog sticks read the wrong direction).
+         */
+        fun mapFrameNormToScreen(
+            frameX: Float, frameY: Float,
+            screenW: Int, screenH: Int,
+            frameW: Int, frameH: Int
+        ): Pair<Float, Float> {
+            if (frameW <= 0 || frameH <= 0 || screenW <= 0 || screenH <= 0 ||
+                (frameW == screenW && frameH == screenH)
+            ) {
+                return Pair(frameX * screenW, frameY * screenH)
+            }
+            val scale = minOf(frameW.toFloat() / screenW, frameH.toFloat() / screenH)
+            val contentW = screenW * scale
+            val contentH = screenH * scale
+            val offX = (frameW - contentW) / 2f
+            val offY = (frameH - contentH) / 2f
+            val nx = ((frameX * frameW - offX) / contentW).coerceIn(0f, 1f)
+            val ny = ((frameY * frameH - offY) / contentH).coerceIn(0f, 1f)
+            return Pair(nx * screenW, ny * screenH)
+        }
     }
 
     // ------------------------------------------------------------------
@@ -116,6 +163,12 @@ class SunshineAccessibilityService : AccessibilityService() {
         val dm = resources.displayMetrics
         point.set(dm.widthPixels, dm.heightPixels)
         return point
+    }
+
+    /** Browser coords are frame-normalized; map them through the letterbox math. */
+    private fun mappedScreenPoint(frameX: Float, frameY: Float): Pair<Float, Float> {
+        val size = displaySize()
+        return mapFrameNormToScreen(frameX, frameY, size.x, size.y, mirrorFrameWidth, mirrorFrameHeight)
     }
 
     private fun toPx(norm: Float, size: Int): Float = norm.coerceIn(0f, 1f) * size
@@ -245,9 +298,9 @@ class SunshineAccessibilityService : AccessibilityService() {
 
     /** Mouse: press (down), drag (move), release (up) as one continuous stroke. */
     fun injectMouse(normX: Float, normY: Float, action: String) {
-        val size = displaySize()
-        val pxX = toPx(normX, size.x)
-        val pxY = toPx(normY, size.y)
+        val pos = mappedScreenPoint(normX, normY)
+        val pxX = pos.first
+        val pxY = pos.second
         when (action) {
             "down" -> beginPointer(MOUSE_ID, pxX, pxY)
             "move" -> movePointer(MOUSE_ID, pxX, pxY)
@@ -259,8 +312,9 @@ class SunshineAccessibilityService : AccessibilityService() {
     fun injectWheel(normX: Float, normY: Float, deltaY: Float) {
         if (deltaY == 0f) return
         val size = displaySize()
-        val pxX = toPx(normX, size.x)
-        val pxY = toPx(normY, size.y)
+        val pos = mappedScreenPoint(normX, normY)
+        val pxX = pos.first
+        val pxY = pos.second
         val dist = (deltaY / 3f).coerceIn(-400f, 400f) // browser notches -> px
         try {
             val path = Path().apply {
@@ -279,13 +333,13 @@ class SunshineAccessibilityService : AccessibilityService() {
 
     /** Multi-touch: press / move / lift a finger identified by pointerId. */
     fun beginTouch(pointerId: Int, normX: Float, normY: Float) {
-        val size = displaySize()
-        beginPointer(TOUCH_ID + pointerId, toPx(normX, size.x), toPx(normY, size.y))
+        val p = mappedScreenPoint(normX, normY)
+        beginPointer(TOUCH_ID + pointerId, p.first, p.second)
     }
 
     fun moveTouch(pointerId: Int, normX: Float, normY: Float) {
-        val size = displaySize()
-        movePointer(TOUCH_ID + pointerId, toPx(normX, size.x), toPx(normY, size.y))
+        val p = mappedScreenPoint(normX, normY)
+        movePointer(TOUCH_ID + pointerId, p.first, p.second)
     }
 
     fun endTouch(pointerId: Int) {
@@ -293,13 +347,20 @@ class SunshineAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * A keyboard key mapped to an on-screen position (calibrated or default HUD):
-     * keydown presses and HOLDS the position, keyup releases it.
+     * A keyboard key mapped to an on-screen position: keydown presses and HOLDS
+     * the position, keyup releases it. fromFrame=true when the coords are
+     * frame-normalized (browser calibration); false for screen-normalized coords
+     * (the built-in default HUD map).
      */
-    fun handleKeyButton(code: String, normX: Float, normY: Float, isDown: Boolean) {
-        val size = displaySize()
+    fun handleKeyButton(code: String, normX: Float, normY: Float, isDown: Boolean, fromFrame: Boolean = true) {
+        val p = if (fromFrame) {
+            mappedScreenPoint(normX, normY)
+        } else {
+            val size = displaySize()
+            Pair(toPx(normX, size.x), toPx(normY, size.y))
+        }
         if (isDown) {
-            beginPointer(KEY_ID + code, toPx(normX, size.x), toPx(normY, size.y))
+            beginPointer(KEY_ID + code, p.first, p.second)
         } else {
             endPointer(KEY_ID + code)
         }
@@ -326,9 +387,10 @@ class SunshineAccessibilityService : AccessibilityService() {
             performGlobalAction(GLOBAL_ACTION_BACK)
             return
         }
+        // The default HUD map is in *screen* coordinates, not frame coordinates.
         val target = defaultKeyMap[code]
         if (target != null) {
-            handleKeyButton(code, target.first, target.second, isDown)
+            handleKeyButton(code, target.first, target.second, isDown, false)
             return
         }
         if (isDown) Log.d(TAG, "Unhandled key: " + code + " (" + key + ")")
@@ -348,10 +410,10 @@ class SunshineAccessibilityService : AccessibilityService() {
         }
     }
 
-    /** Simple one-shot tap in normalized coordinates. */
+    /** Simple one-shot tap in frame-normalized coordinates. */
     fun injectTap(normX: Float, normY: Float) {
-        val size = displaySize()
-        oneShotTap(toPx(normX, size.x), toPx(normY, size.y))
+        val p = mappedScreenPoint(normX, normY)
+        oneShotTap(p.first, p.second)
     }
 
     // ------------------------------------------------------------------
