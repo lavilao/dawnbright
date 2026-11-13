@@ -563,7 +563,7 @@ class HttpWebServer(
                             break
                         }
                         0x09 -> { // Ping
-                            enqueue(0x0A, payload, false)
+                            enqueue(0x0A, payload, false, false, false)
                         }
                     }
                 }
