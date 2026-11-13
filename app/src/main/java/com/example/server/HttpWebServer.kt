@@ -26,6 +26,7 @@ import java.security.MessageDigest
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * HTTP + WebSocket server.
@@ -51,13 +52,33 @@ class HttpWebServer(
         private const val WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
         const val PACKET_TYPE_VIDEO: Byte = 0x01
         const val PACKET_TYPE_AUDIO: Byte = 0x02
-        private const val OUT_QUEUE_FRAMES = 240 // ~4s at 60fps before we start dropping
+        private const val OUT_QUEUE_FRAMES = 240 // hard cap (~4s at 60fps)
+
+        // Low-latency guard: once more video frames than this sit in a client's
+        // outbound queue we drop the backlog instead of delivering it late.
+        // 24 frames ≈ 400ms at 60fps - beyond that the client is better served
+        // by a fresh keyframe than by half a second of stale frames.
+        private const val LOW_LATENCY_BACKLOG = 24
+
+        // Minimum spacing between backlog-triggered keyframe requests.
+        private const val KEYFRAME_DEBOUNCE_MS = 600L
     }
 
     private var serverSocket: ServerSocket? = null
     private var serverJob: Job? = null
     private val isRunning = AtomicBoolean(false)
     private val activeWsClients = CopyOnWriteArrayList<WebSocketClient>()
+    private val lastBacklogKeyframeMs = AtomicLong(0)
+
+    /** A client dropped its video backlog: ask the encoder for a fresh IDR (debounced). */
+    private fun requestKeyframeAfterBacklogDrop() {
+        val now = System.nanoTime() / 1_000_000
+        val last = lastBacklogKeyframeMs.get()
+        if (now - last > KEYFRAME_DEBOUNCE_MS && lastBacklogKeyframeMs.compareAndSet(last, now)) {
+            Log.w(TAG, "Client fell behind - video backlog dropped, requesting keyframe")
+            onKeyFrameRequested()
+        }
+    }
 
     fun start(scope: CoroutineScope) {
         if (isRunning.getAndSet(true)) return
@@ -121,7 +142,7 @@ class HttpWebServer(
         System.arraycopy(naluData, 0, packet, 10, naluData.size)
 
         for (client in activeWsClients) {
-            if (client.isAuthenticated) client.sendBinary(packet)
+            if (client.isAuthenticated) client.sendBinary(packet, isVideo = true, isKeyVideo = isKeyFrame)
         }
     }
 
@@ -330,7 +351,7 @@ class HttpWebServer(
         outputStream.write(response.toByteArray(Charsets.US_ASCII))
         outputStream.flush()
 
-        val wsClient = WebSocketClient(socket, inputStream, outputStream)
+        val wsClient = WebSocketClient(socket, inputStream, outputStream, ::requestKeyframeAfterBacklogDrop)
         wsClient.onMessage = { text -> handleWsMessage(wsClient, text) }
         wsClient.onAuthenticated = {
             Log.i(TAG, "WebSocket client authenticated")
@@ -343,7 +364,7 @@ class HttpWebServer(
                 val bb = ByteBuffer.wrap(packet, 2, 8)
                 bb.putLong(System.nanoTime() / 1000)
                 System.arraycopy(syncFrame, 0, packet, 10, syncFrame.size)
-                wsClient.sendBinary(packet)
+                wsClient.sendBinary(packet, isVideo = true, isKeyVideo = true)
                 Log.i(TAG, "Sent initial sync frame to new client (" + syncFrame.size + " bytes)")
             }
             onKeyFrameRequested()
@@ -437,7 +458,8 @@ class HttpWebServer(
     private class WebSocketClient(
         private val socket: Socket,
         private val inputStream: InputStream,
-        private val outputStream: OutputStream
+        private val outputStream: OutputStream,
+        private val onVideoBacklogDropped: () -> Unit
     ) {
         private class Frame(val opcode: Int, val payload: ByteArray) {
             companion object {
@@ -454,6 +476,11 @@ class HttpWebServer(
 
         private val isClosed = AtomicBoolean(false)
         private val outQueue = ArrayBlockingQueue<Frame>(OUT_QUEUE_FRAMES)
+
+        /** Set after a backlog drop: delta frames are worthless until the next IDR arrives. */
+        @Volatile
+        private var dropUntilKeyframe = false
+
         private val writer = Thread {
             try {
                 while (true) {
@@ -548,26 +575,46 @@ class HttpWebServer(
             }
         }
 
-        fun sendBinary(data: ByteArray) {
-            enqueue(0x02, data, true)
+        fun sendBinary(data: ByteArray, isVideo: Boolean = false, isKeyVideo: Boolean = false) {
+            enqueue(0x02, data, true, isVideo, isKeyVideo)
         }
 
         fun sendText(text: String) {
-            enqueue(0x01, text.toByteArray(Charsets.UTF_8), false)
+            enqueue(0x01, text.toByteArray(Charsets.UTF_8), false, false, false)
         }
 
         /**
-         * Enqueue a frame. Video/audio (droppable=true) clear the backlog when the
-         * queue is full so the stream re-syncs; control text just drops if full.
+         * Enqueue a frame. Video keeps the outbound backlog bounded: past
+         * LOW_LATENCY_BACKLOG the queue is flushed and the stream resyncs on a
+         * fresh keyframe (requested via [onVideoBacklogDropped]); control text
+         * just drops if the queue is full.
          */
-        private fun enqueue(opcode: Int, payload: ByteArray, droppable: Boolean) {
+        private fun enqueue(opcode: Int, payload: ByteArray, droppable: Boolean, isVideo: Boolean, isKeyVideo: Boolean) {
             if (isClosed.get()) return
+
+            if (isVideo) {
+                if (dropUntilKeyframe && !isKeyVideo) return // chain is broken - wait for the IDR
+                if (outQueue.size >= LOW_LATENCY_BACKLOG) {
+                    outQueue.clear()
+                    if (!isKeyVideo) {
+                        dropUntilKeyframe = true
+                        onVideoBacklogDropped()
+                        return // this late delta frame is worthless
+                    }
+                }
+            }
+
             val frame = Frame(opcode, payload)
             if (!outQueue.offer(frame)) {
-                if (droppable) {
-                    outQueue.clear()
-                    outQueue.offer(frame)
-                } // else: drop this frame, client will recover
+                if (!droppable) return
+                outQueue.clear()
+                outQueue.offer(frame)
+                if (isVideo && !isKeyVideo) {
+                    dropUntilKeyframe = true
+                    onVideoBacklogDropped()
+                }
+            } else if (isVideo && isKeyVideo) {
+                dropUntilKeyframe = false
             }
         }
 

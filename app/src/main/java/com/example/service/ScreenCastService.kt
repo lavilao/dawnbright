@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Point
+import android.hardware.display.DisplayManager
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
@@ -62,6 +63,7 @@ class ScreenCastService : Service() {
     private var webServer: HttpWebServer? = null
     private lateinit var appRepo: AppRepository
     private var cachedApps: List<GameApp> = emptyList()
+    private var displayListener: DisplayManager.DisplayListener? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -203,15 +205,34 @@ class ScreenCastService : Service() {
                     onFrameEncoded = { data, isKeyFrame, ptsUs ->
                         webServer?.broadcastVideoFrame(data, isKeyFrame, ptsUs)
                     },
-                    onSpsPpsAvailable = { _, _ -> }
+                    onSpsPpsAvailable = { _, _ -> },
+                    onFrameSizeChanged = { w, h ->
+                        // Keep the input pipeline's letterbox math in sync with the
+                        // encoded frame geometry (initial start AND rotation rebuilds).
+                        SunshineAccessibilityService.setMirrorFrameSize(w, h)
+                        // Let clients resync their decoder on resolution changes.
+                        webServer?.broadcastText("""{"type":"video_size","width":$w,"height":$h}""")
+                    }
                 ).apply {
-                    start(projection, serviceScope, realDisplaySize())
-                    // Tell the input pipeline what frame geometry the browser sees,
-                    // so injected coordinates survive any letterboxing.
-                    SunshineAccessibilityService.setMirrorFrameSize(frameWidth, frameHeight)
+                    start(projection, serviceScope) { realDisplaySize() }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error starting HardwareVideoEncoder: ${e.message}", e)
+            }
+
+            // Watch for orientation changes so the encoder can rebuild its frame
+            // with the right aspect when a game rotates the phone.
+            try {
+                val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+                displayListener = object : DisplayManager.DisplayListener {
+                    override fun onDisplayAdded(displayId: Int) {}
+                    override fun onDisplayRemoved(displayId: Int) {}
+                    override fun onDisplayChanged(displayId: Int) {
+                        videoEncoder?.notifyDisplayChanged()
+                    }
+                }.also { dm.registerDisplayListener(it, null) }
+            } catch (e: Exception) {
+                Log.w(TAG, "Display listener registration failed: ${e.message}")
             }
 
             // 3. Initialize and start internal Audio Streamer (with safe isolation)
@@ -303,6 +324,14 @@ class ScreenCastService : Service() {
         Log.i(TAG, "Stopping streaming components")
         SunshineAccessibilityService.onBindingChanged = null
         SunshineAccessibilityService.setMirrorFrameSize(0, 0)
+
+        try {
+            displayListener?.let {
+                (getSystemService(Context.DISPLAY_SERVICE) as DisplayManager).unregisterDisplayListener(it)
+            }
+        } catch (_: Exception) {}
+        displayListener = null
+
         try { videoEncoder?.stop() } catch (e: Exception) { Log.w(TAG, e) }
         videoEncoder = null
 

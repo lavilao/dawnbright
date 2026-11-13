@@ -1103,6 +1103,9 @@ object WebClientHtml {
     let hasReceivedKeyframe = false;
     let lastKeyframeRequestTime = 0;
     let currentCodecStr = 'avc1.420029';
+    // Set when the phone reports a new frame size (rotation): the decoder must
+    // be reconfigured on the next keyframe even if the codec string is unchanged.
+    let forceReconfigure = false;
 
     function extractSpsInfo(data) {
       for (let i = 0; i < data.length - 4; i++) {
@@ -1237,7 +1240,7 @@ object WebClientHtml {
         if (!b || b.length === 0) return;
         const liveEdge = b.end(b.length - 1);
         const behind = liveEdge - videoElement.currentTime;
-        if (behind > 0.35) {
+        if (behind > 0.25) {
           if (videoElement.playbackRate !== 1) videoElement.playbackRate = 1;
           videoElement.currentTime = liveEdge - 0.05;
         } else if (behind > 0.06) {
@@ -1650,6 +1653,17 @@ object WebClientHtml {
           if (msg.activeApp) {
             document.getElementById('active-app-label').innerText = msg.activeApp;
           }
+        } else if (msg.type === 'video_size') {
+          // Encoder rebuilt with a new frame geometry (phone rotated).
+          console.log('Frame size changed to ' + msg.width + 'x' + msg.height + ', resyncing decoder');
+          if (useWebCodecs) {
+            forceReconfigure = true;
+          } else if (jmuxer) {
+            // MSE cannot handle in-band resolution changes reliably; restart the muxer.
+            try { jmuxer.destroy(); } catch (e) {}
+            jmuxer = null;
+          }
+          requestKeyframe();
         }
       } catch (e) {
         console.error('Failed to parse text message:', e);
@@ -1672,7 +1686,8 @@ object WebClientHtml {
           // --- ENGINE A: WebCodecs Pipeline ---
           if (isKey) {
             const detectedCodec = extractSpsInfo(naluData);
-            if (detectedCodec && (!videoDecoder || videoDecoder.state !== 'configured' || currentCodecStr !== detectedCodec)) {
+            if (detectedCodec && (forceReconfigure || !videoDecoder || videoDecoder.state !== 'configured' || currentCodecStr !== detectedCodec)) {
+              forceReconfigure = false;
               console.log('Stream SPS detected, reconfiguring decoder with ' + detectedCodec);
               videoDecoder = initVideoDecoder(detectedCodec);
             }
@@ -1689,6 +1704,17 @@ object WebClientHtml {
           }
 
           if (videoDecoder && videoDecoder.state === 'configured') {
+            // Keep render latency bounded: if the GPU decoder is falling behind,
+            // drop delta frames (they only extend the backlog) and resync on a
+            // keyframe instead of queueing everything.
+            if (!isKey && videoDecoder.decodeQueueSize > 12) {
+              const now = performance.now();
+              if (now - lastKeyframeRequestTime > 1000) {
+                lastKeyframeRequestTime = now;
+                requestKeyframe();
+              }
+              return;
+            }
             try {
               videoDecoder.decode(new EncodedVideoChunk({
                 type: isKey ? 'key' : 'delta',
