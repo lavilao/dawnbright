@@ -365,9 +365,10 @@ class HardwareVideoEncoder(
                             System.arraycopy(pps, 0, combined, sps.size, pps.size)
                             cachedConfigHeader = combined
                             onSpsPpsAvailable(sps, pps)
-
-                            // Immediately broadcast config packet
-                            onFrameEncoded(combined, true, System.nanoTime() / 1000)
+                            // SPS/PPS are not a picture: they are prepended to
+                            // upcoming IDRs, never broadcast as a video frame.
+                            // Clients would treat it as a keyframe with no
+                            // picture, fail to decode it, and resync in vain.
                         }
                     } else if (outputBufferIndex >= 0) {
                         val outputBuffer = codec.getOutputBuffer(outputBufferIndex)
@@ -382,9 +383,10 @@ class HardwareVideoEncoder(
                             outputBuffer.get(frameBytes)
 
                             if (isConfig) {
+                                // Codec config only - cache it for the next IDR,
+                                // but do not send it as a keyframe or advertise it
+                                // as the sync frame for new clients.
                                 cachedConfigHeader = frameBytes
-                                latestSyncFrame = frameBytes
-                                onFrameEncoded(frameBytes, true, bufferInfo.presentationTimeUs)
                             } else {
                                 val finalData = if (isKeyFrame && cachedConfigHeader != null && !hasSpsPrefix(frameBytes)) {
                                     val header = cachedConfigHeader!!

@@ -1106,6 +1106,10 @@ object WebClientHtml {
     // Set when the phone reports a new frame size (rotation): the decoder must
     // be reconfigured on the next keyframe even if the codec string is unchanged.
     let forceReconfigure = false;
+    // Bumped on every decoder rebuild so late callbacks from a replaced decoder
+    // can never tear down the current one.
+    let decoderGeneration = 0;
+    let decoderRecoveryCount = 0;
 
     function extractSpsInfo(data) {
       for (let i = 0; i < data.length - 4; i++) {
@@ -1159,9 +1163,12 @@ object WebClientHtml {
       }
 
       const targetCodec = codecStr || currentCodecStr || 'avc1.420029';
+      const myGeneration = ++decoderGeneration;
       try {
         const decoder = new VideoDecoder({
           output: (frame) => {
+            if (myGeneration !== decoderGeneration) { frame.close(); return; }
+            decoderRecoveryCount = 0; // this decoder demonstrably works
             if (canvas.width !== frame.displayWidth || canvas.height !== frame.displayHeight) {
               canvas.width = frame.displayWidth;
               canvas.height = frame.displayHeight;
@@ -1171,19 +1178,34 @@ object WebClientHtml {
             frameCount++;
           },
           error: (e) => {
+            if (myGeneration !== decoderGeneration) return; // replaced already - ignore
             console.warn('VideoDecoder error encountered:', e);
             hasReceivedKeyframe = false;
+            videoDecoder = null;
+            // A decoder that keeps failing must not loop forever on a black
+            // screen: hand the stream to the MSE/jmuxer engine instead.
+            if (decoderRecoveryCount++ >= 3) {
+              console.warn('WebCodecs decoder keeps failing - switching to the MSE player');
+              fallBackToMseEngine();
+              return;
+            }
             setTimeout(() => {
-              videoDecoder = initVideoDecoder('avc1.640028');
+              if (!useWebCodecs) return;
+              // Retry with the codec the stream actually advertises - never a
+              // hardcoded profile the phone may not be encoding with.
+              videoDecoder = initVideoDecoder(currentCodecStr);
               requestKeyframe();
             }, 100);
           }
         });
 
+        // Do NOT ask for 'prefer-hardware': browsers/machines without a hardware
+        // H.264 decoder (Linux Chrome, VMs, GPU acceleration disabled) reject
+        // that configuration asynchronously, which leaves the page on a black
+        // screen. 'no-preference' still uses hardware when it is available.
         decoder.configure({
           codec: targetCodec,
-          optimizeForLatency: true,
-          hardwareAcceleration: 'prefer-hardware'
+          optimizeForLatency: true
         });
 
         currentCodecStr = targetCodec;
@@ -1191,12 +1213,24 @@ object WebClientHtml {
         return decoder;
       } catch (e) {
         console.error('Failed to configure VideoDecoder with ' + targetCodec + ':', e);
-        useWebCodecs = false;
-        canvas.style.display = 'none';
-        videoElement.style.display = 'block';
-        initJMuxer();
+        fallBackToMseEngine();
         return null;
       }
+    }
+
+    /** Give up on WebCodecs and play through the MSE/jmuxer engine instead. */
+    function fallBackToMseEngine() {
+      useWebCodecs = false;
+      hasReceivedKeyframe = false;
+      if (videoDecoder) {
+        try { videoDecoder.close(); } catch (e) {}
+        videoDecoder = null;
+      }
+      canvas.style.display = 'none';
+      videoElement.style.display = 'block';
+      const hud = document.getElementById('hud-engine');
+      if (hud) hud.innerText = 'MSE';
+      initJMuxer();
     }
 
     function initJMuxer() {
