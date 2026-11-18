@@ -14,6 +14,7 @@ import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.IBinder
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.MainActivity
@@ -64,6 +65,10 @@ class ScreenCastService : Service() {
     private lateinit var appRepo: AppRepository
     private var cachedApps: List<GameApp> = emptyList()
     private var displayListener: DisplayManager.DisplayListener? = null
+    private val videoStatsLock = Any()
+    private var videoStatsWindowStartMs = 0L
+    private var videoFramesInWindow = 0
+    private var videoBytesInWindow = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -170,7 +175,8 @@ class ScreenCastService : Service() {
             val ip = getLocalIpAddress()
             _serverStatus.value = _serverStatus.value.copy(
                 isRunning = true,
-                isStreaming = true,
+                isStreaming = false,
+                encoderError = "",
                 ipAddress = ip,
                 port = currentConfig.port
             )
@@ -203,6 +209,32 @@ class ScreenCastService : Service() {
                 videoEncoder = HardwareVideoEncoder(
                     config = currentConfig,
                     onFrameEncoded = { data, isKeyFrame, ptsUs ->
+                        val now = SystemClock.elapsedRealtime()
+                        synchronized(videoStatsLock) {
+                            if (videoStatsWindowStartMs == 0L) videoStatsWindowStartMs = now
+                            videoFramesInWindow++
+                            videoBytesInWindow += data.size
+                            val elapsedMs = now - videoStatsWindowStartMs
+                            if (elapsedMs >= 1_000L) {
+                                val elapsedSeconds = elapsedMs / 1_000f
+                                _serverStatus.value = _serverStatus.value.copy(
+                                    isStreaming = true,
+                                    currentFps = (videoFramesInWindow / elapsedSeconds).toInt(),
+                                    currentBitrateMbps = (videoBytesInWindow * 8f / elapsedSeconds / 1_000_000f),
+                                    encoderError = ""
+                                )
+                                videoStatsWindowStartMs = now
+                                videoFramesInWindow = 0
+                                videoBytesInWindow = 0L
+                            } else if (!_serverStatus.value.isStreaming || _serverStatus.value.encoderError.isNotEmpty()) {
+                                // A frame has actually arrived, even if the first measurement
+                                // window has not completed yet.
+                                _serverStatus.value = _serverStatus.value.copy(
+                                    isStreaming = true,
+                                    encoderError = ""
+                                )
+                            }
+                        }
                         webServer?.broadcastVideoFrame(data, isKeyFrame, ptsUs)
                     },
                     onSpsPpsAvailable = { _, _ -> },
@@ -212,12 +244,44 @@ class ScreenCastService : Service() {
                         SunshineAccessibilityService.setMirrorFrameSize(w, h)
                         // Let clients resync their decoder on resolution changes.
                         webServer?.broadcastText("""{"type":"video_size","width":$w,"height":$h}""")
+                    },
+                    onEncoderError = { message ->
+                        Log.e(TAG, message)
+                        synchronized(videoStatsLock) {
+                            videoStatsWindowStartMs = 0L
+                            videoFramesInWindow = 0
+                            videoBytesInWindow = 0L
+                        }
+                        _serverStatus.value = _serverStatus.value.copy(
+                            isStreaming = false,
+                            currentFps = 0,
+                            currentBitrateMbps = 0f,
+                            encoderError = message
+                        )
+                        webServer?.broadcastText(
+                            org.json.JSONObject()
+                                .put("type", "encoder_error")
+                                .put("message", message)
+                                .toString()
+                        )
                     }
                 ).apply {
                     start(projection, serviceScope) { realDisplaySize() }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error starting HardwareVideoEncoder: ${e.message}", e)
+                _serverStatus.value = _serverStatus.value.copy(
+                    isStreaming = false,
+                    currentFps = 0,
+                    currentBitrateMbps = 0f,
+                    encoderError = "Failed to initialize H.264 encoder: ${e.message ?: e.javaClass.simpleName}"
+                )
+            }
+
+            synchronized(videoStatsLock) {
+                videoStatsWindowStartMs = 0L
+                videoFramesInWindow = 0
+                videoBytesInWindow = 0L
             }
 
             // Watch for orientation changes so the encoder can rebuild its frame
@@ -347,7 +411,10 @@ class ScreenCastService : Service() {
         _serverStatus.value = _serverStatus.value.copy(
             isRunning = false,
             isStreaming = false,
-            clientCount = 0
+            currentFps = 0,
+            currentBitrateMbps = 0f,
+            clientCount = 0,
+            encoderError = ""
         )
     }
 

@@ -265,10 +265,15 @@ fun DashboardScreen(
                                     )
                             )
                             Text(
-                                text = if (serverStatus.isRunning) "Streaming" else "Ready",
+                                text = when {
+                                    !serverStatus.isRunning -> "Ready"
+                                    serverStatus.encoderError.isNotEmpty() -> "Video encoder error"
+                                    serverStatus.isStreaming -> "Streaming"
+                                    else -> "Starting video"
+                                },
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = TextPrimary
+                                color = if (serverStatus.encoderError.isNotEmpty()) StatusErr else TextPrimary
                             )
                             if (serverStatus.isRunning && serverStatus.clientCount > 0) {
                                 Text(
@@ -283,6 +288,15 @@ fun DashboardScreen(
                         Spacer(modifier = Modifier.height(16.dp))
 
                         if (serverStatus.isRunning) {
+                            if (serverStatus.encoderError.isNotEmpty()) {
+                                Text(
+                                    text = serverStatus.encoderError,
+                                    fontSize = 12.sp,
+                                    color = StatusErr
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                            }
+
                             // Address row
                             Row(
                                 modifier = Modifier

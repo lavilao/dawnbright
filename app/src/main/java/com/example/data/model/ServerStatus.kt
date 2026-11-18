@@ -11,7 +11,8 @@ data class ServerStatus(
     val activeAppName: String = "",
     val activeAppPackage: String = "",
     val totalBytesSent: Long = 0L,
-    val lastPingMs: Long = 0L
+    val lastPingMs: Long = 0L,
+    val encoderError: String = ""
 ) {
     val serverUrl: String
         get() = "http://$ipAddress:$port"

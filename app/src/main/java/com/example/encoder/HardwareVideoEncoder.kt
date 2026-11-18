@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.view.Surface
 import com.example.data.model.StreamConfig
@@ -37,7 +38,9 @@ class HardwareVideoEncoder(
     private val onFrameEncoded: (data: ByteArray, isKeyFrame: Boolean, timestampUs: Long) -> Unit,
     private val onSpsPpsAvailable: (sps: ByteArray, pps: ByteArray) -> Unit,
     /** Fired whenever the encoded frame size changes (initial start and every rotation rebuild). */
-    private val onFrameSizeChanged: (width: Int, height: Int) -> Unit = { _, _ -> }
+    private val onFrameSizeChanged: (width: Int, height: Int) -> Unit = { _, _ -> },
+    /** Reports encoder setup/output failures so the service cannot report a healthy stream. */
+    private val onEncoderError: (message: String) -> Unit = {}
 ) {
     companion object {
         private const val TAG = "HardwareVideoEncoder"
@@ -46,6 +49,7 @@ class HardwareVideoEncoder(
 
         /** Cooldown after a rotation before rebuilding (rotation events fire in bursts). */
         private const val ROTATION_SETTLE_MS = 400L
+        private const val NO_FRAME_TIMEOUT_MS = 8_000L
 
         @Volatile
         var latestSyncFrame: ByteArray? = null
@@ -77,6 +81,8 @@ class HardwareVideoEncoder(
 
     /** Bumped on every rebuild so stale drain loops exit instead of touching a dead codec. */
     private val generation = AtomicInteger(0)
+    private val noFrameErrorReported = AtomicBoolean(false)
+    @Volatile private var lastVideoFrameAtMs: Long = 0L
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val rebuildExecutor = Executors.newSingleThreadExecutor()
@@ -97,29 +103,23 @@ class HardwareVideoEncoder(
      *        for the initial frame size and re-queried after every rotation.
      */
     fun start(mediaProjection: MediaProjection, scope: CoroutineScope, getDisplaySize: (() -> Point)? = null) {
-        if (isRunning.getAndSet(true)) return
-
-        this.mediaProjection = mediaProjection
-        this.scope = scope
-        this.getDisplaySize = getDisplaySize
-
-        val display = try { getDisplaySize?.invoke() } catch (_: Exception) { null }
-
-        var encWidth = 0
-        var encHeight = 0
         synchronized(codecLock) {
+            if (isRunning.get()) return
+            this.mediaProjection = mediaProjection
+            this.scope = scope
+            this.getDisplaySize = getDisplaySize
+
+            val display = try { getDisplaySize?.invoke() } catch (_: Exception) { null }
             val size = computeFrameSize(display ?: Point(config.width, config.height))
-            encWidth = size.first
-            encHeight = size.second
-            if (startPipelineLocked(encWidth, encHeight, generation.get())) {
-                frameWidth = encWidth
-                frameHeight = encHeight
-            } else {
-                stop()
+            if (!startPipelineLocked(size.first, size.second, generation.get())) {
+                isRunning.set(false)
                 return
             }
+
+            frameWidth = size.first
+            frameHeight = size.second
+            onFrameSizeChanged(size.first, size.second)
         }
-        onFrameSizeChanged(encWidth, encHeight)
     }
 
     /**
@@ -147,9 +147,12 @@ class HardwareVideoEncoder(
     }
 
     fun stop() {
-        if (!isRunning.getAndSet(false)) return
-        Log.i(TAG, "Stopping hardware video encoder")
+        val wasRunning = isRunning.getAndSet(false)
+        if (wasRunning) Log.i(TAG, "Stopping hardware video encoder")
 
+        // A failed initial start or rotation rebuild may already have cleared
+        // isRunning. Cleanup must still run so the executor and any partially
+        // initialized resources do not survive service shutdown.
         mainHandler.removeCallbacksAndMessages(null)
         try { rebuildExecutor.shutdownNow() } catch (_: Exception) {}
 
@@ -215,7 +218,9 @@ class HardwareVideoEncoder(
                 // IDR (with new SPS/PPS) arrives within a frame.
                 latestSyncFrame = null
             } else {
-                Log.e(TAG, "Encoder rebuild failed after rotation; stream will stay at old size until restarted")
+                val message = "H.264 encoder failed to restart after display rotation"
+                Log.e(TAG, "$message; stream will need to be restarted")
+                onEncoderError(message)
             }
         }
         if (newW > 0 && newH > 0) {
@@ -229,19 +234,28 @@ class HardwareVideoEncoder(
 
     /** Resolution budget from the config, matched to the physical screen aspect. */
     private fun computeFrameSize(display: Point): Pair<Int, Int> {
-        val maxW = ((config.width / 2) * 2).coerceAtLeast(320)
-        val maxH = ((config.height / 2) * 2).coerceAtLeast(240)
+        val maxW = alignDown(config.width.toFloat(), 16).coerceAtLeast(320)
+        val maxH = alignDown(config.height.toFloat(), 16).coerceAtLeast(240)
         if (display.x <= 0 || display.y <= 0) return Pair(maxW, maxH)
         val scale = minOf(
             maxW.toFloat() / display.x,
             maxH.toFloat() / display.y
         )
-        val w = ((display.x * scale).toInt() / 2 * 2).coerceAtLeast(320)
-        val h = ((display.y * scale).toInt() / 2 * 2).coerceAtLeast(240)
+        // AVC encoders commonly require 16x16 macroblock-aligned dimensions.
+        // Even dimensions alone (for example 486x1080) can fail configure().
+        val w = alignDown(display.x * scale, 16).coerceAtLeast(320)
+        val h = alignDown(display.y * scale, 16).coerceAtLeast(240)
         return Pair(w, h)
     }
 
-    private fun buildVideoFormat(encWidth: Int, encHeight: Int): MediaFormat {
+    private fun alignDown(value: Float, alignment: Int): Int = value.toInt() / alignment * alignment
+
+    private fun buildVideoFormat(
+        encWidth: Int,
+        encHeight: Int,
+        includeLowLatencyHints: Boolean = true,
+        bitrateMode: Int = MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR
+    ): MediaFormat {
         return MediaFormat.createVideoFormat(MIME_TYPE, encWidth, encHeight).apply {
             setInteger(
                 MediaFormat.KEY_COLOR_FORMAT,
@@ -260,41 +274,56 @@ class HardwareVideoEncoder(
                 }
             } catch (_: Exception) {}
 
-            // Attempt CBR rate control mode first
             try {
-                setInteger(
-                    MediaFormat.KEY_BITRATE_MODE,
-                    MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR
-                )
+                setInteger(MediaFormat.KEY_BITRATE_MODE, bitrateMode)
             } catch (_: Exception) {}
 
-            // Low-latency priority hints
-            try {
-                setInteger(MediaFormat.KEY_PRIORITY, 0)
-                setInteger("latency", 0)
-                setInteger(MediaFormat.KEY_OPERATING_RATE, config.fps)
-                // Android 11+: ask the encoder to disable reordering (B-frames),
-                // which otherwise adds several frames of pipeline latency.
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    setInteger(MediaFormat.KEY_LOW_LATENCY, 1)
-                }
-            } catch (_: Exception) {}
+            // Retry without device-specific low-latency keys if the codec rejects them.
+            if (includeLowLatencyHints) try {
+                    setInteger(MediaFormat.KEY_PRIORITY, 0)
+                    setInteger("latency", 0)
+                    setInteger(MediaFormat.KEY_OPERATING_RATE, config.fps)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        setInteger(MediaFormat.KEY_LOW_LATENCY, 1)
+                    }
+                } catch (_: Exception) {}
         }
     }
 
     private fun createAndConfigureCodec(format: MediaFormat): MediaCodec {
+        val width = format.getInteger(MediaFormat.KEY_WIDTH)
+        val height = format.getInteger(MediaFormat.KEY_HEIGHT)
         val codec = MediaCodec.createEncoderByType(MIME_TYPE)
         try {
             codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-        } catch (e: Exception) {
-            Log.w(TAG, "Configure with CBR failed, falling back to VBR: ${e.message}")
-            format.setInteger(
-                MediaFormat.KEY_BITRATE_MODE,
-                MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR
-            )
-            codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+            return codec
+        } catch (firstError: Exception) {
+            try { codec.release() } catch (_: Exception) {}
+            Log.w(TAG, "Configure with optimized CBR settings failed, retrying baseline AVC: ${firstError.message}")
         }
-        return codec
+
+        val fallback = MediaCodec.createEncoderByType(MIME_TYPE)
+        try {
+            fallback.configure(
+                buildVideoFormat(
+                    width,
+                    height,
+                    includeLowLatencyHints = false,
+                    bitrateMode = MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR
+                ),
+                null,
+                null,
+                MediaCodec.CONFIGURE_FLAG_ENCODE
+            )
+            Log.i(TAG, "Encoder configured with baseline VBR settings")
+            return fallback
+        } catch (fallbackError: Exception) {
+            try { fallback.release() } catch (_: Exception) {}
+            throw IllegalStateException(
+                "AVC encoder rejected ${width}x${height} with optimized and baseline settings",
+                fallbackError
+            )
+        }
     }
 
     /** Creates codec + input surface + VirtualDisplay and starts the drain loop. */
@@ -319,7 +348,15 @@ class HardwareVideoEncoder(
                 null,
                 null
             )
+            if (virtualDisplay == null) {
+                throw IllegalStateException("MediaProjection did not create a virtual display")
+            }
 
+            // The display and codec are fully initialized. Publish the running state
+            // before launching the drain loop so it cannot exit on its first check.
+            lastVideoFrameAtMs = SystemClock.elapsedRealtime()
+            noFrameErrorReported.set(false)
+            isRunning.set(true)
             encodingJob = scope?.launch(Dispatchers.Default) {
                 drainEncoder(gen)
             }
@@ -328,6 +365,11 @@ class HardwareVideoEncoder(
             true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start hardware encoder ${encWidth}x${encHeight}: ${e.message}", e)
+            onEncoderError("Failed to start H.264 encoder at ${encWidth}x${encHeight}: ${e.message ?: e.javaClass.simpleName}")
+            isRunning.set(false)
+            try { virtualDisplay?.release() } catch (_: Exception) {}
+            virtualDisplay = null
+            try { mediaCodec?.stop() } catch (_: Exception) {}
             try { mediaCodec?.release() } catch (_: Exception) {}
             mediaCodec = null
             try { inputSurface?.release() } catch (_: Exception) {}
@@ -345,6 +387,14 @@ class HardwareVideoEncoder(
 
         while (isRunning.get() && generation.get() == gen) {
             try {
+                if (!noFrameErrorReported.get() &&
+                    SystemClock.elapsedRealtime() - lastVideoFrameAtMs >= NO_FRAME_TIMEOUT_MS &&
+                    noFrameErrorReported.compareAndSet(false, true)
+                ) {
+                    val message = "H.264 encoder produced no video frames within ${NO_FRAME_TIMEOUT_MS / 1000}s"
+                    Log.e(TAG, message)
+                    onEncoderError(message)
+                }
                 synchronized(codecLock) {
                     val codec = mediaCodec ?: return
                     val outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, TIMEOUT_US)
@@ -402,6 +452,8 @@ class HardwareVideoEncoder(
                                     latestSyncFrame = finalData
                                 }
 
+                                lastVideoFrameAtMs = SystemClock.elapsedRealtime()
+                                noFrameErrorReported.set(false)
                                 onFrameEncoded(finalData, isKeyFrame, bufferInfo.presentationTimeUs)
                             }
                         }
@@ -410,7 +462,9 @@ class HardwareVideoEncoder(
                 }
             } catch (e: Exception) {
                 if (isRunning.get() && generation.get() == gen) {
-                    Log.w(TAG, "Error in drainEncoder loop: " + e.message)
+                    val message = "H.264 encoder output failed: ${e.message ?: e.javaClass.simpleName}"
+                    Log.e(TAG, message, e)
+                    onEncoderError(message)
                 }
                 break
             }

@@ -261,6 +261,8 @@ class HttpWebServer(
                         put("fps", status.currentFps)
                         put("bitrateMbps", status.currentBitrateMbps)
                         put("activeApp", status.activeAppName)
+                        put("encoderError", status.encoderError)
+                        put("hasVideo", status.isStreaming)
                     }
                     sendHttpResponse(outputStream, 200, "application/json", json.toString().toByteArray())
                 }
